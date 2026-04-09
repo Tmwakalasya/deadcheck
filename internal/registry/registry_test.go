@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tuntufye/deadcheck/internal/model"
+	"github.com/Tmwakalasya/deadcheck/internal/model"
 )
 
 func TestGoMetadataFallbackAndDeprecation(t *testing.T) {

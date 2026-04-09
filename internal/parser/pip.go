@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tuntufye/deadcheck/internal/model"
+	"github.com/Tmwakalasya/deadcheck/internal/model"
 )
 
 type PipParser struct{}

@@ -10,7 +10,7 @@ before:
 
 builds:
   - id: deadcheck
-    main: ./cmd/deadcheck
+    main: .
     binary: deadcheck
     env:
       - CGO_ENABLED=0

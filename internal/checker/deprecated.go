@@ -3,7 +3,7 @@ package checker
 import (
 	"context"
 
-	"github.com/tuntufye/deadcheck/internal/model"
+	"github.com/Tmwakalasya/deadcheck/internal/model"
 )
 
 type DeprecatedChecker struct {

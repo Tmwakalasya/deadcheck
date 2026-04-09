@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tuntufye/deadcheck/internal/model"
+	"github.com/Tmwakalasya/deadcheck/internal/model"
 )
 
 type URLs struct {

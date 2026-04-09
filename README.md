@@ -12,7 +12,7 @@ It scans top-level `go.mod`, `package.json`, and `requirements.txt` files in one
 ## Install
 
 ```bash
-go install github.com/tuntufye/deadcheck@latest
+go install github.com/Tmwakalasya/deadcheck@latest
 ```
 
 ## Usage
@@ -94,6 +94,12 @@ Grades:
 make build
 make test
 make lint
+```
+
+To install from a local checkout instead of GitHub:
+
+```bash
+go install .
 ```
 
 ## Notes

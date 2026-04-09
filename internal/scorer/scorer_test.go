@@ -3,7 +3,7 @@ package scorer
 import (
 	"testing"
 
-	"github.com/tuntufye/deadcheck/internal/model"
+	"github.com/Tmwakalasya/deadcheck/internal/model"
 )
 
 func TestScoreAppliesHighestVulnerabilityAndStalenessPenalties(t *testing.T) {

@@ -12,12 +12,12 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/tuntufye/deadcheck/internal/checker"
-	"github.com/tuntufye/deadcheck/internal/detector"
-	"github.com/tuntufye/deadcheck/internal/model"
-	"github.com/tuntufye/deadcheck/internal/parser"
-	"github.com/tuntufye/deadcheck/internal/registry"
-	"github.com/tuntufye/deadcheck/internal/scorer"
+	"github.com/Tmwakalasya/deadcheck/internal/checker"
+	"github.com/Tmwakalasya/deadcheck/internal/detector"
+	"github.com/Tmwakalasya/deadcheck/internal/model"
+	"github.com/Tmwakalasya/deadcheck/internal/parser"
+	"github.com/Tmwakalasya/deadcheck/internal/registry"
+	"github.com/Tmwakalasya/deadcheck/internal/scorer"
 )
 
 var ErrNoSupportedManifest = errors.New("no supported manifest found")

@@ -1,6 +1,6 @@
 package scorer
 
-import "github.com/tuntufye/deadcheck/internal/model"
+import "github.com/Tmwakalasya/deadcheck/internal/model"
 
 func Score(reports []model.DependencyReport) (int, model.Grade) {
 	score := 100

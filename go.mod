@@ -1,4 +1,4 @@
-module github.com/tuntufye/deadcheck
+module github.com/Tmwakalasya/deadcheck
 
 go 1.26.0
 

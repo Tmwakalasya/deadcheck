@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tuntufye/deadcheck/internal/model"
-	"github.com/tuntufye/deadcheck/internal/registry"
+	"github.com/Tmwakalasya/deadcheck/internal/model"
+	"github.com/Tmwakalasya/deadcheck/internal/registry"
 )
 
 type metadataProvider interface {

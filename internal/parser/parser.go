@@ -1,6 +1,6 @@
 package parser
 
-import "github.com/tuntufye/deadcheck/internal/model"
+import "github.com/Tmwakalasya/deadcheck/internal/model"
 
 type Result struct {
 	Dependencies []model.Dependency

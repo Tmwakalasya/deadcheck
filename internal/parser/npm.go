@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tuntufye/deadcheck/internal/model"
+	"github.com/Tmwakalasya/deadcheck/internal/model"
 )
 
 type NPMParser struct{}

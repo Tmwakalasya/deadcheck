@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/mod/modfile"
 
-	"github.com/tuntufye/deadcheck/internal/model"
+	"github.com/Tmwakalasya/deadcheck/internal/model"
 )
 
 type GoModParser struct{}

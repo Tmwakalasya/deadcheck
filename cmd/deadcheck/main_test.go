@@ -97,7 +97,7 @@ func buildCLI(t *testing.T) string {
 	t.Helper()
 
 	target := filepath.Join(t.TempDir(), "deadcheck")
-	cmd := exec.Command("go", "build", "-o", target, "./cmd/deadcheck")
+	cmd := exec.Command("go", "build", "-o", target, ".")
 	cmd.Dir = filepath.Join("..", "..")
 	cmd.Env = os.Environ()
 	output, err := cmd.CombinedOutput()

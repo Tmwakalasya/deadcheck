@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tuntufye/deadcheck/internal/model"
+	"github.com/Tmwakalasya/deadcheck/internal/model"
 )
 
 func TestGoModParserSkipsIndirectAndFlagsLocalReplace(t *testing.T) {
@@ -70,13 +70,18 @@ func TestNPMParserNormalizesVersionsAndFlagsUnsupportedSources(t *testing.T) {
 	if len(result.Dependencies) != 4 {
 		t.Fatalf("expected 4 dependencies, got %d", len(result.Dependencies))
 	}
-	if result.Dependencies[0].ResolvedVersion == "" {
+
+	byName := make(map[string]model.Dependency, len(result.Dependencies))
+	for _, dep := range result.Dependencies {
+		byName[dep.Name] = dep
+	}
+	if byName["lodash"].ResolvedVersion == "" {
 		t.Fatalf("expected normalized version for lodash")
 	}
-	if !result.Dependencies[3].Dev {
+	if !byName["vitest"].Dev {
 		t.Fatalf("expected dev dependency flag to be preserved")
 	}
-	if result.Dependencies[2].SkipReason == "" {
+	if byName["local-lib"].SkipReason == "" {
 		t.Fatalf("expected non-registry dependency source to be skipped")
 	}
 	if len(result.Warnings) < 1 {
