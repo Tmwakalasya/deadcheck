@@ -106,3 +106,4 @@ go install .
 
 - npm and PyPI vulnerability checks need a safely normalized version. If a manifest range cannot be normalized, `deadcheck` still runs staleness and deprecation checks and records a scan warning.
 - Go dependencies replaced with local filesystem paths are reported but skipped for remote checks.
+- [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Tmwakalasya/deadcheck)
