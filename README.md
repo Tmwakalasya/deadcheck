@@ -21,6 +21,7 @@ go install github.com/Tmwakalasya/deadcheck@latest
 deadcheck
 deadcheck /path/to/project
 deadcheck --json
+deadcheck --production-only
 deadcheck --min-severity warning
 deadcheck --fail-below 80
 ```
@@ -28,6 +29,7 @@ deadcheck --fail-below 80
 ### Flags
 
 - `--json`: emit structured JSON to stdout
+- `--production-only`: exclude npm `devDependencies` from scanning and scoring
 - `--verbose`: include `info` findings in terminal output
 - `--min-severity info|warning|critical`: filter terminal output severity
 - `--fail-below N`: exit with code `1` when score is below `N`
@@ -41,7 +43,7 @@ deadcheck --fail-below 80
 | Ecosystem | Manifest | Notes |
 | --- | --- | --- |
 | Go | `go.mod` | direct `require` entries only, indirect deps skipped |
-| npm | `package.json` | scans `dependencies` and `devDependencies` |
+| npm | `package.json` | scans `dependencies` and `devDependencies`, with optional `--production-only` filtering |
 | PyPI | `requirements.txt` | top-level requirements only |
 
 ### v0.1 scope

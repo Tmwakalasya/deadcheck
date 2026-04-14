@@ -23,12 +23,18 @@ import (
 var ErrNoSupportedManifest = errors.New("no supported manifest found")
 
 type Scanner struct {
-	parsers  []parser.Parser
-	checkers []checker.Checker
-	workers  int
+	parsers        []parser.Parser
+	checkers       []checker.Checker
+	workers        int
+	productionOnly bool
 }
 
-func New(httpClient *http.Client, urls registry.URLs, workers int) *Scanner {
+type Options struct {
+	Workers        int
+	ProductionOnly bool
+}
+
+func New(httpClient *http.Client, urls registry.URLs, opts Options) *Scanner {
 	client := registry.NewClient(httpClient, urls)
 	return &Scanner{
 		parsers: []parser.Parser{
@@ -41,7 +47,8 @@ func New(httpClient *http.Client, urls registry.URLs, workers int) *Scanner {
 			checker.NewDeprecated(client),
 			checker.NewVulnerability(client),
 		},
-		workers: workers,
+		workers:        opts.Workers,
+		productionOnly: opts.ProductionOnly,
 	}
 }
 
@@ -72,6 +79,9 @@ func (s *Scanner) Scan(ctx context.Context, target string) (model.ScanResult, er
 		result, err := parser.Parse(manifest.Path)
 		if err != nil {
 			return model.ScanResult{}, err
+		}
+		if s.productionOnly {
+			result = filterProductionOnly(result)
 		}
 		allDeps = append(allDeps, result.Dependencies...)
 		warnings = append(warnings, result.Warnings...)
@@ -208,6 +218,46 @@ func dedupeDependencies(deps []model.Dependency) []model.Dependency {
 		out = append(out, dep)
 	}
 	return out
+}
+
+func filterProductionOnly(result parser.Result) parser.Result {
+	if len(result.Dependencies) == 0 {
+		return result
+	}
+
+	filtered := make([]model.Dependency, 0, len(result.Dependencies))
+	excludedBySource := make(map[string]struct{})
+	keptBySource := make(map[string]struct{})
+	for _, dep := range result.Dependencies {
+		key := dep.Source + "|" + dep.Name
+		if dep.Dev {
+			excludedBySource[key] = struct{}{}
+			continue
+		}
+		keptBySource[key] = struct{}{}
+		filtered = append(filtered, dep)
+	}
+	if len(excludedBySource) == 0 {
+		result.Dependencies = filtered
+		return result
+	}
+
+	warnings := make([]model.Warning, 0, len(result.Warnings))
+	for _, warning := range result.Warnings {
+		if warning.Dependency != "" {
+			key := warning.Source + "|" + warning.Dependency
+			if _, excluded := excludedBySource[key]; excluded {
+				if _, kept := keptBySource[key]; !kept {
+					continue
+				}
+			}
+		}
+		warnings = append(warnings, warning)
+	}
+
+	result.Dependencies = filtered
+	result.Warnings = warnings
+	return result
 }
 
 func sortFindings(findings []model.Finding) {

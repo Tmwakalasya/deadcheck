@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/Tmwakalasya/deadcheck/internal/model"
-	"github.com/Tmwakalasya/deadcheck/internal/report"
 	"github.com/Tmwakalasya/deadcheck/internal/registry"
+	"github.com/Tmwakalasya/deadcheck/internal/report"
 	"github.com/Tmwakalasya/deadcheck/internal/scanner"
 )
 
@@ -25,13 +25,14 @@ const (
 )
 
 type Config struct {
-	Path        string
-	MinSeverity model.Severity
-	Workers     int
-	Timeout     time.Duration
-	JSON        bool
-	FailBelow   int
-	Version     string
+	Path           string
+	MinSeverity    model.Severity
+	Workers        int
+	Timeout        time.Duration
+	JSON           bool
+	ProductionOnly bool
+	FailBelow      int
+	Version        string
 }
 
 type ExitError struct {
@@ -48,17 +49,19 @@ func Main(args []string, version string, stdout, stderr io.Writer) int {
 	flags.SetOutput(stderr)
 
 	var (
-		jsonOut     bool
-		verbose     bool
-		minSeverity string
-		failBelow   int
-		pathFlag    string
-		workers     int
-		timeout     time.Duration
-		showVersion bool
+		jsonOut        bool
+		productionOnly bool
+		verbose        bool
+		minSeverity    string
+		failBelow      int
+		pathFlag       string
+		workers        int
+		timeout        time.Duration
+		showVersion    bool
 	)
 
 	flags.BoolVar(&jsonOut, "json", false, "emit JSON output")
+	flags.BoolVar(&productionOnly, "production-only", false, "exclude devDependencies from scans and scoring")
 	flags.BoolVar(&verbose, "verbose", false, "show info findings in terminal output")
 	flags.StringVar(&minSeverity, "min-severity", string(model.SeverityWarning), "minimum severity: info, warning, critical")
 	flags.IntVar(&failBelow, "fail-below", 0, "exit 1 if score is below threshold")
@@ -98,13 +101,14 @@ func Main(args []string, version string, stdout, stderr io.Writer) int {
 	}
 
 	cfg := Config{
-		Path:        target,
-		MinSeverity: sev,
-		Workers:     workers,
-		Timeout:     timeout,
-		JSON:        jsonOut,
-		FailBelow:   failBelow,
-		Version:     version,
+		Path:           target,
+		MinSeverity:    sev,
+		Workers:        workers,
+		Timeout:        timeout,
+		JSON:           jsonOut,
+		ProductionOnly: productionOnly,
+		FailBelow:      failBelow,
+		Version:        version,
 	}
 
 	if err := execute(context.Background(), cfg, stdout, stderr); err != nil {
@@ -159,7 +163,10 @@ func execute(ctx context.Context, cfg Config, stdout, stderr io.Writer) error {
 		},
 	}
 
-	scan := scanner.New(httpClient, registry.URLsFromEnv(), cfg.Workers)
+	scan := scanner.New(httpClient, registry.URLsFromEnv(), scanner.Options{
+		Workers:        cfg.Workers,
+		ProductionOnly: cfg.ProductionOnly,
+	})
 	result, err := scan.Scan(ctx, cfg.Path)
 	if err != nil {
 		if errors.Is(err, scanner.ErrNoSupportedManifest) {
