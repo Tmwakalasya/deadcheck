@@ -24,6 +24,7 @@ deadcheck --json
 deadcheck --production-only
 deadcheck --min-severity warning
 deadcheck --fail-below 80
+deadcheck init ci
 ```
 
 ### Flags
@@ -37,6 +38,24 @@ deadcheck --fail-below 80
 - `--timeout 30s`: overall scan timeout
 - `--path DIR`: explicit target directory
 - `--version`: print the binary version
+
+### Background scans
+
+Generate a scheduled GitHub Actions workflow:
+
+```bash
+deadcheck init ci
+```
+
+This creates `.github/workflows/deadcheck.yml` with a weekly dependency scan, manual trigger, pull request scan, JSON report artifact, and `--fail-below 80` threshold.
+
+Useful options:
+
+- `--path DIR`: repository directory to write the workflow into
+- `--fail-below N`: score threshold for the workflow, default `80`
+- `--production-only`: exclude npm `devDependencies` in the workflow scan
+- `--schedule "0 14 * * 1"`: GitHub Actions cron schedule
+- `--force`: overwrite an existing deadcheck workflow
 
 ## What v0.1 supports
 

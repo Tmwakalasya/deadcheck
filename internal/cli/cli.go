@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Tmwakalasya/deadcheck/internal/ci"
 	"github.com/Tmwakalasya/deadcheck/internal/model"
 	"github.com/Tmwakalasya/deadcheck/internal/registry"
 	"github.com/Tmwakalasya/deadcheck/internal/report"
@@ -45,6 +46,10 @@ func (e *ExitError) Error() string {
 }
 
 func Main(args []string, version string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "init" {
+		return initMain(args[1:], stdout, stderr)
+	}
+
 	flags := flag.NewFlagSet("deadcheck", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 
@@ -121,6 +126,60 @@ func Main(args []string, version string, stdout, stderr io.Writer) int {
 		}
 		return fatal(stdout, stderr, jsonOut, exitStartup, err.Error())
 	}
+	return exitOK
+}
+
+func initMain(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 0 {
+		return fatal(stdout, stderr, false, exitUsage, "expected init target; supported target: ci")
+	}
+	switch args[0] {
+	case "ci":
+		return initCI(args[1:], stdout, stderr)
+	default:
+		return fatal(stdout, stderr, false, exitUsage, "unsupported init target; supported target: ci")
+	}
+}
+
+func initCI(args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("deadcheck init ci", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+
+	var (
+		pathFlag       string
+		schedule       string
+		failBelow      int
+		productionOnly bool
+		force          bool
+	)
+
+	flags.StringVar(&pathFlag, "path", "", "target repository directory")
+	flags.StringVar(&schedule, "schedule", "0 14 * * 1", "GitHub Actions cron schedule")
+	flags.IntVar(&failBelow, "fail-below", 80, "workflow scan threshold")
+	flags.BoolVar(&productionOnly, "production-only", false, "exclude npm devDependencies in the workflow scan")
+	flags.BoolVar(&force, "force", false, "overwrite an existing deadcheck workflow")
+
+	if err := flags.Parse(args); err != nil {
+		return fatal(stdout, stderr, false, exitUsage, err.Error())
+	}
+
+	target, err := resolveTarget(pathFlag, flags.Args())
+	if err != nil {
+		return fatal(stdout, stderr, false, exitUsage, err.Error())
+	}
+
+	path, err := ci.InitWorkflow(ci.Options{
+		Path:           target,
+		Schedule:       schedule,
+		FailBelow:      failBelow,
+		ProductionOnly: productionOnly,
+		Force:          force,
+	})
+	if err != nil {
+		return fatal(stdout, stderr, false, exitStartup, err.Error())
+	}
+
+	_, _ = fmt.Fprintf(stdout, "Created %s\n", path)
 	return exitOK
 }
 

@@ -1,0 +1,29 @@
+name: deadcheck
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 14 * * 1"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - name: Install deadcheck
+        run: go install github.com/Tmwakalasya/deadcheck@latest
+      - name: Run deadcheck
+        run: $(go env GOPATH)/bin/deadcheck --json --production-only --fail-below 80 > deadcheck-report.json
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deadcheck-report
+          path: deadcheck-report.json

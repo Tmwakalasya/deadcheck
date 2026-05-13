@@ -127,6 +127,34 @@ func TestCLINoManifestProducesFatalJSON(t *testing.T) {
 	}
 }
 
+func TestCLIInitCICreatesWorkflow(t *testing.T) {
+	t.Parallel()
+
+	project := t.TempDir()
+	stdout, stderr, code := runCLI(t, "http://127.0.0.1:1", "init", "ci", "--path", project, "--production-only", "--fail-below", "70")
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d\nstderr=%s", code, stderr)
+	}
+	if !strings.Contains(stdout, ".github/workflows/deadcheck.yml") {
+		t.Fatalf("expected stdout to mention workflow path, got %q", stdout)
+	}
+
+	workflow, err := os.ReadFile(filepath.Join(project, ".github", "workflows", "deadcheck.yml"))
+	if err != nil {
+		t.Fatalf("expected workflow to be created: %v", err)
+	}
+	content := string(workflow)
+	for _, want := range []string{
+		"schedule:",
+		"deadcheck --json --production-only --fail-below 70 > deadcheck-report.json",
+		"actions/upload-artifact@v4",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("expected workflow to contain %q\n%s", want, content)
+		}
+	}
+}
+
 func runCLI(t *testing.T, baseURL string, args ...string) (string, string, int) {
 	t.Helper()
 
