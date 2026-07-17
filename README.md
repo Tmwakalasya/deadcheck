@@ -21,6 +21,7 @@ go install github.com/Tmwakalasya/deadcheck@latest
 deadcheck
 deadcheck /path/to/project
 deadcheck --json
+deadcheck --github-summary
 deadcheck --production-only
 deadcheck --min-severity warning
 deadcheck --fail-below 80
@@ -30,6 +31,7 @@ deadcheck init ci
 ### Flags
 
 - `--json`: emit structured JSON to stdout
+- `--github-summary`: write a Markdown report to `$GITHUB_STEP_SUMMARY`
 - `--production-only`: exclude npm `devDependencies` from scanning and scoring
 - `--verbose`: include `info` findings in terminal output
 - `--min-severity info|warning|critical`: filter terminal output severity
@@ -47,7 +49,7 @@ Generate a scheduled GitHub Actions workflow:
 deadcheck init ci
 ```
 
-This creates `.github/workflows/deadcheck.yml` with a weekly dependency scan, manual trigger, pull request scan, JSON report artifact, and `--fail-below 80` threshold.
+This creates `.github/workflows/deadcheck.yml` with a weekly dependency scan, manual trigger, pull request scan, GitHub Actions job summary, JSON report artifact, and `--fail-below 80` threshold.
 
 Useful options:
 
@@ -90,6 +92,8 @@ Terminal output groups dependencies by severity and prints scan warnings separat
 - `duration_ms`
 - `warnings`
 - full dependency findings
+
+In GitHub Actions, `--github-summary` writes a compact Markdown report to the job summary while preserving normal terminal or JSON output.
 
 ## Scoring
 

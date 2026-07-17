@@ -31,6 +31,7 @@ type Config struct {
 	Workers        int
 	Timeout        time.Duration
 	JSON           bool
+	GitHubSummary  bool
 	ProductionOnly bool
 	FailBelow      int
 	Version        string
@@ -55,6 +56,7 @@ func Main(args []string, version string, stdout, stderr io.Writer) int {
 
 	var (
 		jsonOut        bool
+		githubSummary  bool
 		productionOnly bool
 		verbose        bool
 		minSeverity    string
@@ -66,6 +68,7 @@ func Main(args []string, version string, stdout, stderr io.Writer) int {
 	)
 
 	flags.BoolVar(&jsonOut, "json", false, "emit JSON output")
+	flags.BoolVar(&githubSummary, "github-summary", false, "write a Markdown report to $GITHUB_STEP_SUMMARY")
 	flags.BoolVar(&productionOnly, "production-only", false, "exclude devDependencies from scans and scoring")
 	flags.BoolVar(&verbose, "verbose", false, "show info findings in terminal output")
 	flags.StringVar(&minSeverity, "min-severity", string(model.SeverityWarning), "minimum severity: info, warning, critical")
@@ -111,6 +114,7 @@ func Main(args []string, version string, stdout, stderr io.Writer) int {
 		Workers:        workers,
 		Timeout:        timeout,
 		JSON:           jsonOut,
+		GitHubSummary:  githubSummary,
 		ProductionOnly: productionOnly,
 		FailBelow:      failBelow,
 		Version:        version,
@@ -244,6 +248,12 @@ func execute(ctx context.Context, cfg Config, stdout, stderr io.Writer) error {
 			MinSeverity: cfg.MinSeverity,
 			Colorize:    report.ColorEnabled(),
 		}); err != nil {
+			return err
+		}
+	}
+
+	if cfg.GitHubSummary {
+		if err := report.WriteGitHubSummaryFromEnv(result); err != nil {
 			return err
 		}
 	}

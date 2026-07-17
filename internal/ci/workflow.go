@@ -56,7 +56,7 @@ func RenderWorkflow(opts Options) string {
 		schedule = "0 14 * * 1"
 	}
 
-	args := []string{"--json"}
+	args := []string{"--json", "--github-summary"}
 	if opts.ProductionOnly {
 		args = append(args, "--production-only")
 	}

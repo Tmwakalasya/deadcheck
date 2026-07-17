@@ -46,6 +46,42 @@ func TestCLIJSONOutputAndFailBelow(t *testing.T) {
 	}
 }
 
+func TestCLIGitHubSummaryKeepsJSONOutput(t *testing.T) {
+	t.Parallel()
+
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"dependencies":{"local-lib":"file:../local-lib"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	summaryPath := filepath.Join(t.TempDir(), "summary.md")
+	stdout, stderr, code := runCLIWithEnv(t, "http://127.0.0.1:1", []string{"GITHUB_STEP_SUMMARY=" + summaryPath}, "--json", "--github-summary", project)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d\nstderr=%s", code, stderr)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr)
+	}
+
+	var payload struct {
+		Score int `json:"score"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("failed to decode JSON output: %v\nstdout=%s", err, stdout)
+	}
+	if payload.Score != 100 {
+		t.Fatalf("expected score 100, got %d", payload.Score)
+	}
+
+	summary, err := os.ReadFile(summaryPath)
+	if err != nil {
+		t.Fatalf("expected GitHub summary to be written: %v", err)
+	}
+	if !strings.Contains(string(summary), "## deadcheck report") {
+		t.Fatalf("expected GitHub summary content, got %q", string(summary))
+	}
+}
+
 func TestCLIProductionOnlyExcludesDevDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -146,7 +182,7 @@ func TestCLIInitCICreatesWorkflow(t *testing.T) {
 	content := string(workflow)
 	for _, want := range []string{
 		"schedule:",
-		"deadcheck --json --production-only --fail-below 70 > deadcheck-report.json",
+		"deadcheck --json --github-summary --production-only --fail-below 70 > deadcheck-report.json",
 		"actions/upload-artifact@v4",
 	} {
 		if !strings.Contains(content, want) {
@@ -156,6 +192,11 @@ func TestCLIInitCICreatesWorkflow(t *testing.T) {
 }
 
 func runCLI(t *testing.T, baseURL string, args ...string) (string, string, int) {
+	t.Helper()
+	return runCLIWithEnv(t, baseURL, nil, args...)
+}
+
+func runCLIWithEnv(t *testing.T, baseURL string, extraEnv []string, args ...string) (string, string, int) {
 	t.Helper()
 
 	binary := buildCLI(t)
@@ -167,6 +208,7 @@ func runCLI(t *testing.T, baseURL string, args ...string) (string, string, int) 
 		"DEADCHECK_PYPI_URL="+baseURL,
 		"DEADCHECK_OSV_URL="+baseURL,
 	)
+	cmd.Env = append(cmd.Env, extraEnv...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

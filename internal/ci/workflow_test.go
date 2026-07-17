@@ -21,7 +21,7 @@ func TestRenderWorkflowIncludesScheduledScan(t *testing.T) {
 		"workflow_dispatch:",
 		"cron: \"15 9 * * 2\"",
 		"go install github.com/Tmwakalasya/deadcheck@latest",
-		"deadcheck --json --production-only --fail-below 75 > deadcheck-report.json",
+		"deadcheck --json --github-summary --production-only --fail-below 75 > deadcheck-report.json",
 		"actions/upload-artifact@v4",
 	} {
 		if !strings.Contains(workflow, want) {

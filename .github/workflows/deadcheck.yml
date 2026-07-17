@@ -20,7 +20,7 @@ jobs:
       - name: Install deadcheck
         run: go install github.com/Tmwakalasya/deadcheck@latest
       - name: Run deadcheck
-        run: $(go env GOPATH)/bin/deadcheck --json --production-only --fail-below 80 > deadcheck-report.json
+        run: $(go env GOPATH)/bin/deadcheck --json --github-summary --production-only --fail-below 80 > deadcheck-report.json
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
