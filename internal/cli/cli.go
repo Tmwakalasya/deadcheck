@@ -16,6 +16,7 @@ import (
 	"github.com/Tmwakalasya/deadcheck/internal/registry"
 	"github.com/Tmwakalasya/deadcheck/internal/report"
 	"github.com/Tmwakalasya/deadcheck/internal/scanner"
+	"github.com/Tmwakalasya/deadcheck/internal/tui"
 )
 
 const (
@@ -32,6 +33,7 @@ type Config struct {
 	Timeout        time.Duration
 	JSON           bool
 	GitHubSummary  bool
+	NoTUI          bool
 	ProductionOnly bool
 	FailBelow      int
 	Version        string
@@ -46,7 +48,7 @@ func (e *ExitError) Error() string {
 	return e.Message
 }
 
-func Main(args []string, version string, stdout, stderr io.Writer) int {
+func Main(args []string, version string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 0 && args[0] == "init" {
 		return initMain(args[1:], stdout, stderr)
 	}
@@ -57,6 +59,7 @@ func Main(args []string, version string, stdout, stderr io.Writer) int {
 	var (
 		jsonOut        bool
 		githubSummary  bool
+		noTUI          bool
 		productionOnly bool
 		verbose        bool
 		minSeverity    string
@@ -69,6 +72,7 @@ func Main(args []string, version string, stdout, stderr io.Writer) int {
 
 	flags.BoolVar(&jsonOut, "json", false, "emit JSON output")
 	flags.BoolVar(&githubSummary, "github-summary", false, "write a Markdown report to $GITHUB_STEP_SUMMARY")
+	flags.BoolVar(&noTUI, "no-tui", false, "use the non-interactive terminal report")
 	flags.BoolVar(&productionOnly, "production-only", false, "exclude devDependencies from scans and scoring")
 	flags.BoolVar(&verbose, "verbose", false, "show info findings in terminal output")
 	flags.StringVar(&minSeverity, "min-severity", string(model.SeverityWarning), "minimum severity: info, warning, critical")
@@ -115,12 +119,13 @@ func Main(args []string, version string, stdout, stderr io.Writer) int {
 		Timeout:        timeout,
 		JSON:           jsonOut,
 		GitHubSummary:  githubSummary,
+		NoTUI:          noTUI,
 		ProductionOnly: productionOnly,
 		FailBelow:      failBelow,
 		Version:        version,
 	}
 
-	if err := execute(context.Background(), cfg, stdout, stderr); err != nil {
+	if err := execute(context.Background(), cfg, stdin, stdout, stderr); err != nil {
 		var exitErr *ExitError
 		if errors.As(err, &exitErr) {
 			if exitErr.Message == "" {
@@ -213,10 +218,7 @@ func fatal(stdout, stderr io.Writer, jsonOut bool, code int, message string) int
 	return code
 }
 
-func execute(ctx context.Context, cfg Config, stdout, stderr io.Writer) error {
-	ctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
-	defer cancel()
-
+func execute(ctx context.Context, cfg Config, stdin io.Reader, stdout, stderr io.Writer) error {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
@@ -230,7 +232,29 @@ func execute(ctx context.Context, cfg Config, stdout, stderr io.Writer) error {
 		Workers:        cfg.Workers,
 		ProductionOnly: cfg.ProductionOnly,
 	})
-	result, err := scan.Scan(ctx, cfg.Path)
+	scanFn := func(runCtx context.Context) (model.ScanResult, error) {
+		scanCtx, cancel := context.WithTimeout(runCtx, cfg.Timeout)
+		defer cancel()
+		return scan.Scan(scanCtx, cfg.Path)
+	}
+
+	interactive := !cfg.JSON && !cfg.NoTUI && tui.Enabled(stdin, stdout)
+	var (
+		result model.ScanResult
+		err    error
+	)
+	if interactive {
+		result, err = tui.Run(ctx, stdin, stdout, tui.Options{
+			Version:     cfg.Version,
+			Path:        cfg.Path,
+			MinSeverity: cfg.MinSeverity,
+		}, scanFn)
+		if errors.Is(err, tui.ErrCanceled) {
+			return nil
+		}
+	} else {
+		result, err = scanFn(ctx)
+	}
 	if err != nil {
 		if errors.Is(err, scanner.ErrNoSupportedManifest) {
 			return &ExitError{Code: exitStartup, Message: err.Error()}
@@ -242,11 +266,11 @@ func execute(ctx context.Context, cfg Config, stdout, stderr io.Writer) error {
 		if err := report.WriteJSON(stdout, result); err != nil {
 			return err
 		}
-	} else {
+	} else if !interactive {
 		if err := report.WriteTable(stdout, stderr, result, report.TableOptions{
 			Version:     cfg.Version,
 			MinSeverity: cfg.MinSeverity,
-			Colorize:    report.ColorEnabled(),
+			Colorize:    report.ColorEnabled(stdout),
 		}); err != nil {
 			return err
 		}

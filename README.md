@@ -22,6 +22,7 @@ deadcheck
 deadcheck /path/to/project
 deadcheck --json
 deadcheck --github-summary
+deadcheck --no-tui
 deadcheck --production-only
 deadcheck --min-severity warning
 deadcheck --fail-below 80
@@ -32,6 +33,7 @@ deadcheck init ci
 
 - `--json`: emit structured JSON to stdout
 - `--github-summary`: write a Markdown report to `$GITHUB_STEP_SUMMARY`
+- `--no-tui`: skip the interactive dashboard and print a static terminal report
 - `--production-only`: exclude npm `devDependencies` from scanning and scoring
 - `--verbose`: include `info` findings in terminal output
 - `--min-severity info|warning|critical`: filter terminal output severity
@@ -82,7 +84,17 @@ Useful options:
 
 ## Output
 
-Terminal output groups dependencies by severity and prints scan warnings separately on stderr. JSON output includes:
+On a real terminal, `deadcheck` opens an interactive Bubble Tea dashboard after scanning. It includes a live scan state, health summary, severity views, clean dependencies, full finding details, and scan warnings.
+
+Dashboard keys:
+
+- `h` / `l` or left / right: switch views
+- `j` / `k` or up / down: select a dependency or warning
+- `1-6`: jump directly to a view
+- `pgup` / `pgdn`: move through long lists
+- `q`, `esc`, or `ctrl+c`: close the dashboard
+
+Piped output, `NO_COLOR`, `TERM=dumb`, `--no-tui`, and CI environments automatically use the static plain-text report. Scan warnings remain on stderr in static mode. JSON output includes:
 
 - `score`
 - `grade`

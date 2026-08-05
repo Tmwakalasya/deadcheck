@@ -9,5 +9,5 @@ import (
 var version = "v0.1.0"
 
 func main() {
-	os.Exit(cli.Main(os.Args[1:], version, os.Stdout, os.Stderr))
+	os.Exit(cli.Main(os.Args[1:], version, os.Stdin, os.Stdout, os.Stderr))
 }

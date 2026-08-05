@@ -163,6 +163,31 @@ func TestCLINoManifestProducesFatalJSON(t *testing.T) {
 	}
 }
 
+func TestCLINoTUIUsesPlainReport(t *testing.T) {
+	t.Parallel()
+
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"dependencies":{"local-lib":"file:../local-lib"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runCLI(t, "http://127.0.0.1:1", "--no-tui", project)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d\nstderr=%s", code, stderr)
+	}
+	for _, want := range []string{"DEADCHECK", "HEALTH SCORE", "No findings at or above the selected severity."} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("expected stdout to contain %q\n%s", want, stdout)
+		}
+	}
+	if strings.Contains(stdout, "\x1b[") {
+		t.Fatalf("expected redirected output without ANSI escapes, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "SCAN WARNINGS") {
+		t.Fatalf("expected skipped local dependency warning, got %q", stderr)
+	}
+}
+
 func TestCLIInitCICreatesWorkflow(t *testing.T) {
 	t.Parallel()
 

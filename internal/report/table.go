@@ -2,12 +2,14 @@ package report
 
 import (
 	"fmt"
+	"image/color"
 	"io"
 	"os"
 	"sort"
 	"strings"
 
-	"github.com/fatih/color"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/term"
 
 	"github.com/Tmwakalasya/deadcheck/internal/model"
 )
@@ -19,15 +21,31 @@ type TableOptions struct {
 }
 
 func WriteTable(stdout, stderr io.Writer, result model.ScanResult, opts TableOptions) error {
-	configureColor(opts.Colorize)
-
-	if _, err := fmt.Fprintf(stdout, "deadcheck %s - scanning %s\n\n", opts.Version, result.Path); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(stdout, "Found: %s\n\n", manifestSummary(result.Manifests, result.Dependencies)); err != nil {
+	brand := renderStyle(opts.Colorize, "DEADCHECK", reportAccent, true)
+	version := renderStyle(opts.Colorize, opts.Version, reportMuted, false)
+	if _, err := fmt.Fprintf(stdout, "%s  %s\n%s\n", brand, version, result.Path); err != nil {
 		return err
 	}
 
+	grade := strings.ToUpper(gradeLabel(result.Grade))
+	score := renderStyle(opts.Colorize, fmt.Sprintf("%d / 100", result.Score), gradeColor(result.Grade), true)
+	if _, err := fmt.Fprintf(stdout, "\nHEALTH SCORE  %s  %s\n", score, grade); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(stdout, "%d %s  /  %d %s  /  %.1fs\n",
+		result.DependencyCount,
+		pluralize("dependency", result.DependencyCount),
+		len(result.Ecosystems),
+		pluralize("ecosystem", len(result.Ecosystems)),
+		float64(result.DurationMS)/1000,
+	); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(stdout, "Manifests: %s\n\n", manifestSummary(result.Manifests, result.Dependencies)); err != nil {
+		return err
+	}
+
+	printed := false
 	for _, severity := range []model.Severity{model.SeverityCritical, model.SeverityWarning, model.SeverityInfo} {
 		if severity.Rank() < opts.MinSeverity.Rank() {
 			continue
@@ -36,11 +54,20 @@ func WriteTable(stdout, stderr io.Writer, result model.ScanResult, opts TableOpt
 		if len(group) == 0 {
 			continue
 		}
-		if _, err := fmt.Fprintf(stdout, "%s (%d)\n", severityHeading(severity), len(group)); err != nil {
+		printed = true
+		if _, err := fmt.Fprintf(stdout, "%s  %d\n", severityHeading(severity, opts.Colorize), len(group)); err != nil {
 			return err
 		}
 		for _, dep := range group {
-			if _, err := fmt.Fprintf(stdout, "  %s %s %s\n", severityGlyph(severity), dep.Dependency.Name, displayVersion(dep.Dependency.ResolvedVersion)); err != nil {
+			if _, err := fmt.Fprintf(stdout, "  %s  %s  %s", severityGlyph(severity, opts.Colorize), dep.Dependency.Name, displayVersion(dep.Dependency.ResolvedVersion)); err != nil {
+				return err
+			}
+			if dep.Dependency.Dev {
+				if _, err := fmt.Fprint(stdout, "  [dev]"); err != nil {
+					return err
+				}
+			}
+			if _, err := fmt.Fprintln(stdout); err != nil {
 				return err
 			}
 			lines := summarizeFindings(dep.Findings, opts.MinSeverity)
@@ -55,15 +82,14 @@ func WriteTable(stdout, stderr io.Writer, result model.ScanResult, opts TableOpt
 		}
 	}
 
-	if _, err := fmt.Fprintf(stdout, "Health Score: %d/100 %s\n", result.Score, gradeLabel(result.Grade)); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(stdout, "Scanned %d dependencies across %d ecosystems in %.1fs\n", result.DependencyCount, len(result.Ecosystems), float64(result.DurationMS)/1000); err != nil {
-		return err
+	if !printed {
+		if _, err := fmt.Fprintln(stdout, renderStyle(opts.Colorize, "No findings at or above the selected severity.", reportClean, true)); err != nil {
+			return err
+		}
 	}
 
 	if len(result.Warnings) > 0 {
-		if _, err := fmt.Fprintln(stderr, "\nScan warnings:"); err != nil {
+		if _, err := fmt.Fprintln(stderr, "\nSCAN WARNINGS"); err != nil {
 			return err
 		}
 		for _, warning := range result.Warnings {
@@ -83,8 +109,20 @@ func WriteTable(stdout, stderr io.Writer, result model.ScanResult, opts TableOpt
 	return nil
 }
 
-func configureColor(enabled bool) {
-	color.NoColor = !enabled
+var (
+	reportAccent   = lipgloss.Color("#51B7A8")
+	reportCritical = lipgloss.Color("#E05D5D")
+	reportWarning  = lipgloss.Color("#D89B35")
+	reportInfo     = lipgloss.Color("#4F9DD9")
+	reportClean    = lipgloss.Color("#63B47A")
+	reportMuted    = lipgloss.Color("#7D8790")
+)
+
+func renderStyle(enabled bool, value string, foreground color.Color, bold bool) string {
+	if !enabled {
+		return value
+	}
+	return lipgloss.NewStyle().Foreground(foreground).Bold(bold).Render(value)
 }
 
 func manifestSummary(manifests []model.Manifest, reports []model.DependencyReport) string {
@@ -109,25 +147,25 @@ func reportsBySeverity(reports []model.DependencyReport, severity model.Severity
 	return group
 }
 
-func severityHeading(severity model.Severity) string {
+func severityHeading(severity model.Severity, colorize bool) string {
 	switch severity {
 	case model.SeverityCritical:
-		return color.New(color.FgRed, color.Bold).Sprint("CRITICAL")
+		return renderStyle(colorize, "CRITICAL", reportCritical, true)
 	case model.SeverityWarning:
-		return color.New(color.FgYellow, color.Bold).Sprint("WARNING")
+		return renderStyle(colorize, "WARNING", reportWarning, true)
 	default:
-		return color.New(color.FgCyan, color.Bold).Sprint("INFO")
+		return renderStyle(colorize, "INFO", reportInfo, true)
 	}
 }
 
-func severityGlyph(severity model.Severity) string {
+func severityGlyph(severity model.Severity, colorize bool) string {
 	switch severity {
 	case model.SeverityCritical:
-		return color.New(color.FgRed).Sprint("!")
+		return renderStyle(colorize, "!", reportCritical, true)
 	case model.SeverityWarning:
-		return color.New(color.FgYellow).Sprint("~")
+		return renderStyle(colorize, "~", reportWarning, true)
 	default:
-		return color.New(color.FgCyan).Sprint("i")
+		return renderStyle(colorize, "i", reportInfo, true)
 	}
 }
 
@@ -214,13 +252,23 @@ func gradeLabel(grade model.Grade) string {
 	}
 }
 
-func ColorEnabled() bool {
-	info, err := os.Stdout.Stat()
-	if err != nil {
+func gradeColor(grade model.Grade) color.Color {
+	switch grade {
+	case model.GradeExcellent:
+		return reportClean
+	case model.GradeGood:
+		return reportAccent
+	case model.GradeNeedsAttention:
+		return reportWarning
+	default:
+		return reportCritical
+	}
+}
+
+func ColorEnabled(w io.Writer) bool {
+	if _, disabled := os.LookupEnv("NO_COLOR"); disabled || strings.EqualFold(os.Getenv("TERM"), "dumb") {
 		return false
 	}
-	if os.Getenv("NO_COLOR") != "" {
-		return false
-	}
-	return (info.Mode() & os.ModeCharDevice) != 0
+	file, ok := w.(interface{ Fd() uintptr })
+	return ok && term.IsTerminal(file.Fd())
 }
