@@ -298,6 +298,27 @@ func TestCLIGraphRejectsConflictingPaths(t *testing.T) {
 	}
 }
 
+func TestCLIHelpExitsCleanly(t *testing.T) {
+	t.Parallel()
+
+	for _, args := range [][]string{
+		{"--help"},
+		{"graph", "--help"},
+		{"init", "ci", "--help"},
+	} {
+		_, stderr, code := runCLI(t, "http://127.0.0.1:1", args...)
+		if code != 0 {
+			t.Fatalf("%v: expected help exit code 0, got %d", args, code)
+		}
+		if !strings.Contains(stderr, "Usage of") {
+			t.Fatalf("%v: expected usage text, got %q", args, stderr)
+		}
+		if strings.Contains(stderr, "flag: help requested") {
+			t.Fatalf("%v: help should not be reported as an error: %q", args, stderr)
+		}
+	}
+}
+
 func TestCLIInitCICreatesWorkflow(t *testing.T) {
 	t.Parallel()
 

@@ -87,6 +87,9 @@ func Main(args []string, version string, stdin io.Reader, stdout, stderr io.Writ
 	flags.BoolVar(&showVersion, "version", false, "print version")
 
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return exitOK
+		}
 		return fatal(stdout, stderr, jsonOut, exitUsage, err.Error())
 	}
 
@@ -161,6 +164,9 @@ func graphMain(args []string, version string, stdout, stderr io.Writer) int {
 	flags.DurationVar(&timeout, "timeout", 30*time.Second, "graph resolution timeout")
 
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return exitOK
+		}
 		return fatal(stdout, stderr, jsonOut, exitUsage, err.Error())
 	}
 	target, err := resolveTarget(pathFlag, flags.Args())
@@ -228,6 +234,9 @@ func initCI(args []string, stdout, stderr io.Writer) int {
 	flags.BoolVar(&force, "force", false, "overwrite an existing deadcheck workflow")
 
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return exitOK
+		}
 		return fatal(stdout, stderr, false, exitUsage, err.Error())
 	}
 
