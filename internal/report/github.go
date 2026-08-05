@@ -126,5 +126,8 @@ func pluralize(word string, count int) string {
 	if count == 1 {
 		return word
 	}
+	if len(word) > 1 && word[len(word)-1] == 'y' && !strings.ContainsRune("aeiou", rune(word[len(word)-2])) {
+		return word[:len(word)-1] + "ies"
+	}
 	return word + "s"
 }

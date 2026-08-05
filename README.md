@@ -28,6 +28,8 @@ deadcheck --no-tui
 deadcheck --production-only
 deadcheck --min-severity warning
 deadcheck --fail-below 80
+deadcheck graph
+deadcheck graph --json
 deadcheck init ci
 ```
 
@@ -44,6 +46,28 @@ deadcheck init ci
 - `--timeout 30s`: overall scan timeout
 - `--path DIR`: explicit target directory
 - `--version`: print the binary version
+
+### Dependency graph
+
+Inspect why dependencies are present without changing the project:
+
+```bash
+deadcheck graph
+deadcheck graph /path/to/project
+deadcheck graph --depth 0
+deadcheck graph --json
+deadcheck graph --production-only
+```
+
+Terminal output is a deterministic tree with direct, transitive, dev, optional, shared, and duplicate-install context. It defaults to three levels; `--depth 0` prints the complete tree. JSON always contains the complete node and edge set, regardless of `--depth`.
+
+Graph resolution is ecosystem-native:
+
+- Go uses `go mod graph` in readonly mode. This is Go's module requirement graph, so it can include older minimum versions referenced by selected modules.
+- npm reads `npm-shrinkwrap.json` or `package-lock.json` v1-v3, preserves physical install paths, resolves hoisted edges, and prunes unreachable lockfile entries.
+- Python requirements are shown direct-only for now, with a graph warning explaining that transitive resolution needs a canonical lockfile format.
+
+If Go graph resolution fails or an npm lockfile is missing or invalid, `deadcheck` returns a usable direct-only graph and marks the result partial. Graph warnings go to stderr; with `--json`, stdout remains valid JSON.
 
 ### Background scans
 
@@ -65,11 +89,11 @@ Useful options:
 
 ## What v0.1 supports
 
-| Ecosystem | Manifest | Notes |
+| Ecosystem | Health scan | Dependency graph |
 | --- | --- | --- |
-| Go | `go.mod` | direct `require` entries only, indirect deps skipped |
-| npm | `package.json` | scans `dependencies` and `devDependencies`, with optional `--production-only` filtering |
-| PyPI | `requirements.txt` | top-level requirements only |
+| Go | direct `require` entries | native module requirement graph |
+| npm | `dependencies` and `devDependencies` | physical tree from shrinkwrap or package-lock v1-v3 |
+| PyPI | top-level requirements | direct-only until lockfile support lands |
 
 ### v0.1 scope
 
@@ -79,7 +103,7 @@ Useful options:
 
 ### Not in v0.1
 
-- lockfiles or transitive dependency analysis
+- transitive vulnerability scoring; `deadcheck graph` is read-only analysis
 - recursive monorepo scanning
 - archived GitHub repository checks
 - automatic fixes or config files

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Tmwakalasya/deadcheck/internal/ci"
+	"github.com/Tmwakalasya/deadcheck/internal/graph"
 	"github.com/Tmwakalasya/deadcheck/internal/model"
 	"github.com/Tmwakalasya/deadcheck/internal/registry"
 	"github.com/Tmwakalasya/deadcheck/internal/report"
@@ -51,6 +52,9 @@ func (e *ExitError) Error() string {
 func Main(args []string, version string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 0 && args[0] == "init" {
 		return initMain(args[1:], stdout, stderr)
+	}
+	if len(args) > 0 && args[0] == "graph" {
+		return graphMain(args[1:], version, stdout, stderr)
 	}
 
 	flags := flag.NewFlagSet("deadcheck", flag.ContinueOnError)
@@ -134,6 +138,61 @@ func Main(args []string, version string, stdin io.Reader, stdout, stderr io.Writ
 			return fatal(stdout, stderr, jsonOut, exitErr.Code, exitErr.Message)
 		}
 		return fatal(stdout, stderr, jsonOut, exitStartup, err.Error())
+	}
+	return exitOK
+}
+
+func graphMain(args []string, version string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("deadcheck graph", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+
+	var (
+		jsonOut        bool
+		productionOnly bool
+		pathFlag       string
+		depth          int
+		timeout        time.Duration
+	)
+
+	flags.BoolVar(&jsonOut, "json", false, "emit the full graph as JSON")
+	flags.BoolVar(&productionOnly, "production-only", false, "exclude npm devDependencies from the graph")
+	flags.StringVar(&pathFlag, "path", "", "target directory to inspect")
+	flags.IntVar(&depth, "depth", 3, "maximum terminal tree depth; 0 shows the full graph")
+	flags.DurationVar(&timeout, "timeout", 30*time.Second, "graph resolution timeout")
+
+	if err := flags.Parse(args); err != nil {
+		return fatal(stdout, stderr, jsonOut, exitUsage, err.Error())
+	}
+	target, err := resolveTarget(pathFlag, flags.Args())
+	if err != nil {
+		return fatal(stdout, stderr, jsonOut, exitUsage, err.Error())
+	}
+	if depth < 0 {
+		return fatal(stdout, stderr, jsonOut, exitUsage, "--depth must be 0 or greater")
+	}
+	if timeout <= 0 {
+		return fatal(stdout, stderr, jsonOut, exitUsage, "--timeout must be greater than 0")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	result, err := graph.New().Build(ctx, target, graph.Options{ProductionOnly: productionOnly})
+	if err != nil {
+		return fatal(stdout, stderr, jsonOut, exitStartup, err.Error())
+	}
+
+	if jsonOut {
+		if err := report.WriteGraphJSON(stdout, result); err != nil {
+			return fatal(stdout, stderr, true, exitStartup, err.Error())
+		}
+		return exitOK
+	}
+	if err := report.WriteGraph(stdout, stderr, result, report.GraphOptions{
+		Version:  version,
+		MaxDepth: depth,
+		Colorize: report.ColorEnabled(stdout),
+	}); err != nil {
+		return fatal(stdout, stderr, false, exitStartup, err.Error())
 	}
 	return exitOK
 }

@@ -188,6 +188,116 @@ func TestCLINoTUIUsesPlainReport(t *testing.T) {
 	}
 }
 
+func TestCLIGraphJSONAndPlainText(t *testing.T) {
+	t.Parallel()
+
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{
+  "name": "cli-graph",
+  "dependencies": {"alpha": "1.0.0"}
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "package-lock.json"), []byte(`{
+  "lockfileVersion": 3,
+  "packages": {
+    "": {},
+    "node_modules/alpha": {
+      "version": "1.0.0",
+      "dependencies": {"beta": "2.0.0"}
+    },
+    "node_modules/beta": {"version": "2.0.0"}
+  }
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runCLI(t, "http://127.0.0.1:1", "graph", "--json", project)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d\nstderr=%s", code, stderr)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("expected empty JSON stderr, got %q", stderr)
+	}
+	var payload struct {
+		DependencyCount int `json:"dependency_count"`
+		DirectCount     int `json:"direct_count"`
+		TransitiveCount int `json:"transitive_count"`
+		Nodes           []struct {
+			Name        string `json:"name"`
+			InstallPath string `json:"install_path"`
+		} `json:"nodes"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("failed to decode graph JSON: %v\nstdout=%s", err, stdout)
+	}
+	if payload.DependencyCount != 2 || payload.DirectCount != 1 || payload.TransitiveCount != 1 {
+		t.Fatalf("unexpected graph counts: %#v", payload)
+	}
+	foundPhysicalPath := false
+	for _, node := range payload.Nodes {
+		if node.Name == "beta" && node.InstallPath == "node_modules/beta" {
+			foundPhysicalPath = true
+		}
+	}
+	if !foundPhysicalPath {
+		t.Fatalf("expected beta physical install path, got %#v", payload.Nodes)
+	}
+
+	stdout, stderr, code = runCLI(t, "http://127.0.0.1:1", "graph", "--depth", "1", project)
+	if code != 0 {
+		t.Fatalf("expected plain graph exit code 0, got %d\nstderr=%s", code, stderr)
+	}
+	for _, want := range []string{"DEADCHECK GRAPH", "2 dependencies  /  1 direct  /  1 transitive", "alpha 1.0.0 [direct]", "... 1 immediate dependency"} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("expected graph output to contain %q\n%s", want, stdout)
+		}
+	}
+	if strings.Contains(stdout, "\x1b[") {
+		t.Fatalf("expected redirected graph output without ANSI escapes, got %q", stdout)
+	}
+}
+
+func TestCLIGraphNoManifestProducesFatalJSON(t *testing.T) {
+	t.Parallel()
+
+	stdout, _, code := runCLI(t, "http://127.0.0.1:1", "graph", "--json", t.TempDir())
+	if code != 3 {
+		t.Fatalf("expected exit code 3, got %d", code)
+	}
+	var payload struct {
+		Error string `json:"error"`
+		Code  int    `json:"code"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("failed to decode graph fatal JSON: %v\nstdout=%s", err, stdout)
+	}
+	if payload.Code != 3 || payload.Error == "" {
+		t.Fatalf("unexpected graph fatal payload: %#v", payload)
+	}
+}
+
+func TestCLIGraphRejectsConflictingPaths(t *testing.T) {
+	t.Parallel()
+
+	project := t.TempDir()
+	other := t.TempDir()
+	stdout, _, code := runCLI(t, "http://127.0.0.1:1", "graph", "--json", "--path", project, other)
+	if code != 2 {
+		t.Fatalf("expected usage exit code 2, got %d", code)
+	}
+	var payload struct {
+		Error string `json:"error"`
+		Code  int    `json:"code"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("failed to decode graph usage JSON: %v\nstdout=%s", err, stdout)
+	}
+	if payload.Code != 2 || !strings.Contains(payload.Error, "must match") {
+		t.Fatalf("unexpected graph usage payload: %#v", payload)
+	}
+}
+
 func TestCLIInitCICreatesWorkflow(t *testing.T) {
 	t.Parallel()
 
