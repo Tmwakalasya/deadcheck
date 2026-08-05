@@ -1,4 +1,6 @@
 # deadcheck
+<img width="1400" height="496" alt="Deadcheck Logo-selection" src="https://github.com/user-attachments/assets/e0ad3e48-a72d-47be-a59c-38cf63d6a2ed" />
+
 
 `deadcheck` is a single Go binary that answers a simple question fast: should you worry about your dependencies right now?
 
