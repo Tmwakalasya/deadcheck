@@ -298,23 +298,122 @@ func TestCLIGraphRejectsConflictingPaths(t *testing.T) {
 	}
 }
 
+func TestCLIWhyJSONPlainTextAndNoMatch(t *testing.T) {
+	t.Parallel()
+
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{
+  "name": "why-app",
+  "dependencies": {
+    "alpha": "1.0.0",
+    "bravo": "1.0.0"
+  }
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "package-lock.json"), []byte(`{
+  "lockfileVersion": 3,
+  "packages": {
+    "": {},
+    "node_modules/alpha": {
+      "version": "1.0.0",
+      "dependencies": {"shared": "2.0.0"}
+    },
+    "node_modules/bravo": {
+      "version": "1.0.0",
+      "dependencies": {"shared": "2.0.0"}
+    },
+    "node_modules/shared": {"version": "2.0.0"}
+  }
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runCLI(t, "http://127.0.0.1:1", "why", "shared", "--json", project)
+	if code != 0 {
+		t.Fatalf("expected why exit code 0, got %d\nstderr=%s", code, stderr)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("expected empty why JSON stderr, got %q", stderr)
+	}
+	var payload struct {
+		MatchCount int `json:"match_count"`
+		Matches    []struct {
+			Dependency struct {
+				Name        string `json:"name"`
+				InstallPath string `json:"install_path"`
+			} `json:"dependency"`
+			Paths []struct {
+				Nodes []struct {
+					Name string `json:"name"`
+				} `json:"nodes"`
+			} `json:"paths"`
+		} `json:"matches"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("failed to decode why JSON: %v\nstdout=%s", err, stdout)
+	}
+	if payload.MatchCount != 1 || len(payload.Matches) != 1 {
+		t.Fatalf("expected one physical match, got %#v", payload)
+	}
+	if payload.Matches[0].Dependency.Name != "shared" || payload.Matches[0].Dependency.InstallPath != "node_modules/shared" {
+		t.Fatalf("unexpected matched dependency: %#v", payload.Matches[0].Dependency)
+	}
+	if len(payload.Matches[0].Paths) != 2 {
+		t.Fatalf("expected two causal paths, got %#v", payload.Matches[0].Paths)
+	}
+
+	stdout, stderr, code = runCLI(t, "http://127.0.0.1:1", "why", "--path", project, "shared")
+	if code != 0 {
+		t.Fatalf("expected plain why exit code 0, got %d\nstderr=%s", code, stderr)
+	}
+	for _, want := range []string{"DEADCHECK WHY", "QUERY  shared", "1 match  /  2 paths", "PATH 1", "PATH 2", "-> alpha 1.0.0 [direct]", "-> bravo 1.0.0 [direct]"} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("expected why output to contain %q\n%s", want, stdout)
+		}
+	}
+
+	stdout, stderr, code = runCLI(t, "http://127.0.0.1:1", "why", "share", "--json", project)
+	if code != 1 {
+		t.Fatalf("expected no-match exit code 1, got %d\nstderr=%s", code, stderr)
+	}
+	var missing struct {
+		MatchCount  int      `json:"match_count"`
+		Suggestions []string `json:"suggestions"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &missing); err != nil {
+		t.Fatalf("failed to decode no-match JSON: %v\nstdout=%s", err, stdout)
+	}
+	if missing.MatchCount != 0 || len(missing.Suggestions) != 1 || missing.Suggestions[0] != "shared" {
+		t.Fatalf("unexpected no-match payload: %#v", missing)
+	}
+}
+
 func TestCLIHelpExitsCleanly(t *testing.T) {
 	t.Parallel()
 
 	for _, args := range [][]string{
 		{"--help"},
 		{"graph", "--help"},
+		{"why", "--help"},
 		{"init", "ci", "--help"},
 	} {
 		_, stderr, code := runCLI(t, "http://127.0.0.1:1", args...)
 		if code != 0 {
 			t.Fatalf("%v: expected help exit code 0, got %d", args, code)
 		}
-		if !strings.Contains(stderr, "Usage of") {
+		if !strings.Contains(stderr, "Usage") {
 			t.Fatalf("%v: expected usage text, got %q", args, stderr)
 		}
 		if strings.Contains(stderr, "flag: help requested") {
 			t.Fatalf("%v: help should not be reported as an error: %q", args, stderr)
+		}
+	}
+
+	_, stderr, _ := runCLI(t, "http://127.0.0.1:1", "--help")
+	for _, command := range []string{"deadcheck graph", "deadcheck why", "deadcheck init ci"} {
+		if !strings.Contains(stderr, command) {
+			t.Fatalf("expected top-level help to advertise %q, got %q", command, stderr)
 		}
 	}
 }

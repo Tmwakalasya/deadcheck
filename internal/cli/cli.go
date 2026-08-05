@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Tmwakalasya/deadcheck/internal/ci"
@@ -56,9 +57,21 @@ func Main(args []string, version string, stdin io.Reader, stdout, stderr io.Writ
 	if len(args) > 0 && args[0] == "graph" {
 		return graphMain(args[1:], version, stdout, stderr)
 	}
+	if len(args) > 0 && args[0] == "why" {
+		return whyMain(args[1:], version, stdout, stderr)
+	}
 
 	flags := flag.NewFlagSet("deadcheck", flag.ContinueOnError)
 	flags.SetOutput(stderr)
+	flags.Usage = func() {
+		_, _ = fmt.Fprintln(stderr, "Usage:")
+		_, _ = fmt.Fprintln(stderr, "  deadcheck [flags] [path]")
+		_, _ = fmt.Fprintln(stderr, "  deadcheck graph [flags] [path]")
+		_, _ = fmt.Fprintln(stderr, "  deadcheck why [flags] <dependency> [path]")
+		_, _ = fmt.Fprintln(stderr, "  deadcheck init ci [flags] [path]")
+		_, _ = fmt.Fprintln(stderr, "\nScan flags:")
+		flags.PrintDefaults()
+	}
 
 	var (
 		jsonOut        bool
@@ -201,6 +214,119 @@ func graphMain(args []string, version string, stdout, stderr io.Writer) int {
 		return fatal(stdout, stderr, false, exitStartup, err.Error())
 	}
 	return exitOK
+}
+
+func whyMain(args []string, version string, stdout, stderr io.Writer) int {
+	query := ""
+	flagArgs := args
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		query = args[0]
+		flagArgs = args[1:]
+	}
+
+	flags := flag.NewFlagSet("deadcheck why", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	flags.Usage = func() {
+		_, _ = fmt.Fprintln(stderr, "Usage:")
+		_, _ = fmt.Fprintln(stderr, "  deadcheck why [flags] <dependency> [path]")
+		_, _ = fmt.Fprintln(stderr, "\nFlags:")
+		flags.PrintDefaults()
+	}
+
+	var (
+		jsonOut           bool
+		productionOnly    bool
+		pathFlag          string
+		ecosystemValue    string
+		dependencyVersion string
+		maxPaths          int
+		timeout           time.Duration
+	)
+
+	flags.BoolVar(&jsonOut, "json", false, "emit dependency paths as JSON")
+	flags.BoolVar(&productionOnly, "production-only", false, "exclude npm devDependencies from path analysis")
+	flags.StringVar(&pathFlag, "path", "", "target directory to inspect")
+	flags.StringVar(&ecosystemValue, "ecosystem", "", "limit matches to go, npm, or pypi")
+	flags.StringVar(&dependencyVersion, "dependency-version", "", "limit matches to an exact dependency version")
+	flags.IntVar(&maxPaths, "max-paths", 10, "maximum causal paths per match (1-100)")
+	flags.DurationVar(&timeout, "timeout", 30*time.Second, "dependency path resolution timeout")
+
+	if err := flags.Parse(flagArgs); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return exitOK
+		}
+		return fatal(stdout, stderr, jsonOut, exitUsage, err.Error())
+	}
+
+	positional := flags.Args()
+	if query == "" {
+		if len(positional) == 0 {
+			return fatal(stdout, stderr, jsonOut, exitUsage, "expected a dependency name")
+		}
+		query = positional[0]
+		positional = positional[1:]
+	}
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return fatal(stdout, stderr, jsonOut, exitUsage, "dependency name must not be empty")
+	}
+	target, err := resolveTarget(pathFlag, positional)
+	if err != nil {
+		return fatal(stdout, stderr, jsonOut, exitUsage, err.Error())
+	}
+	ecosystem, ok := parseEcosystem(ecosystemValue)
+	if !ok {
+		return fatal(stdout, stderr, jsonOut, exitUsage, "invalid --ecosystem; expected go, npm, pypi, or pip")
+	}
+	if maxPaths < 1 || maxPaths > 100 {
+		return fatal(stdout, stderr, jsonOut, exitUsage, "--max-paths must be between 1 and 100")
+	}
+	if timeout <= 0 {
+		return fatal(stdout, stderr, jsonOut, exitUsage, "--timeout must be greater than 0")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	graphResult, err := graph.New().Build(ctx, target, graph.Options{ProductionOnly: productionOnly})
+	if err != nil {
+		return fatal(stdout, stderr, jsonOut, exitStartup, err.Error())
+	}
+	result := graph.Explain(graphResult, graph.ExplainOptions{
+		Query:     query,
+		Version:   dependencyVersion,
+		Ecosystem: ecosystem,
+		MaxPaths:  maxPaths,
+	})
+
+	if jsonOut {
+		if err := report.WriteWhyJSON(stdout, result); err != nil {
+			return fatal(stdout, stderr, true, exitStartup, err.Error())
+		}
+	} else if err := report.WriteWhy(stdout, stderr, result, report.WhyOptions{
+		Version:  version,
+		Colorize: report.ColorEnabled(stdout),
+	}); err != nil {
+		return fatal(stdout, stderr, false, exitStartup, err.Error())
+	}
+	if result.MatchCount == 0 {
+		return exitThreshold
+	}
+	return exitOK
+}
+
+func parseEcosystem(value string) (model.Ecosystem, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "":
+		return "", true
+	case "go":
+		return model.EcosystemGo, true
+	case "npm":
+		return model.EcosystemNPM, true
+	case "pypi", "pip":
+		return model.EcosystemPyPI, true
+	default:
+		return "", false
+	}
 }
 
 func initMain(args []string, stdout, stderr io.Writer) int {

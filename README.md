@@ -30,6 +30,8 @@ deadcheck --min-severity warning
 deadcheck --fail-below 80
 deadcheck graph
 deadcheck graph --json
+deadcheck why lodash
+deadcheck why golang.org/x/sys --json
 deadcheck init ci
 ```
 
@@ -69,6 +71,24 @@ Graph resolution is ecosystem-native:
 
 If Go graph resolution fails or an npm lockfile is missing or invalid, `deadcheck` returns a usable direct-only graph and marks the result partial. Graph warnings go to stderr; with `--json`, stdout remains valid JSON.
 
+### Explain a dependency
+
+Trace every causal path from a manifest root to a dependency:
+
+```bash
+deadcheck why lodash
+deadcheck why golang.org/x/sys
+deadcheck why shared --json
+deadcheck why lodash --ecosystem npm
+deadcheck why lodash --dependency-version 4.17.21
+deadcheck why lodash --max-paths 25
+deadcheck why lodash --path /path/to/project
+```
+
+`why` distinguishes duplicate physical npm installations, reports alternate parents, and safely handles graph cycles. Queries are exact but case-insensitive; a missing dependency returns suggestions when available and exits with code `1`. The default is at most 10 causal paths per graph match, configurable up to 100 with `--max-paths`.
+
+Both `deadcheck why lodash --json` and `deadcheck why --json lodash` are accepted. JSON includes each matched node plus the complete ordered node and edge sequence for every returned path.
+
 ### Background scans
 
 Generate a scheduled GitHub Actions workflow:
@@ -87,21 +107,21 @@ Useful options:
 - `--schedule "0 14 * * 1"`: GitHub Actions cron schedule
 - `--force`: overwrite an existing deadcheck workflow
 
-## What v0.1 supports
+## What v0.2 supports
 
-| Ecosystem | Health scan | Dependency graph |
+| Ecosystem | Health scan | Graph and `why` |
 | --- | --- | --- |
 | Go | direct `require` entries | native module requirement graph |
 | npm | `dependencies` and `devDependencies` | physical tree from shrinkwrap or package-lock v1-v3 |
 | PyPI | top-level requirements | direct-only until lockfile support lands |
 
-### v0.1 scope
+### v0.2 scope
 
 - top-level manifests only
-- direct dependencies only
+- direct dependencies for health scoring; graph and `why` add transitive visibility
 - best-effort scans: lookup failures become warnings instead of aborting the scan
 
-### Not in v0.1
+### Not yet included
 
 - transitive vulnerability scoring; `deadcheck graph` is read-only analysis
 - recursive monorepo scanning

@@ -87,7 +87,7 @@ func TestWriteGraphJSON(t *testing.T) {
 	}
 }
 
-func TestGraphDisplayAdjacencyCollapsesRedundantRootEdges(t *testing.T) {
+func TestGraphDisplayCollapsesRedundantRootEdges(t *testing.T) {
 	t.Parallel()
 
 	root := graph.Node{ID: "go:root:app", Name: "app", Root: true}
@@ -102,6 +102,7 @@ func TestGraphDisplayAdjacencyCollapsesRedundantRootEdges(t *testing.T) {
 	}
 	result := graph.Result{
 		Roots: []string{root.ID},
+		Nodes: []graph.Node{root, direct, transitive, isolated},
 		Edges: []graph.Edge{
 			{From: root.ID, To: direct.ID},
 			{From: root.ID, To: transitive.ID},
@@ -110,7 +111,7 @@ func TestGraphDisplayAdjacencyCollapsesRedundantRootEdges(t *testing.T) {
 		},
 	}
 
-	adjacency := graphDisplayAdjacency(result, nodes)
+	adjacency := graphAdjacency(graph.ExplanationEdges(result), nodes)
 	if len(adjacency[root.ID]) != 2 {
 		t.Fatalf("expected direct and isolated root edges, got %#v", adjacency[root.ID])
 	}

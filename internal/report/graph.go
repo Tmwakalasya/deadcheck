@@ -48,7 +48,7 @@ func WriteGraph(stdout, stderr io.Writer, result graph.Result, opts GraphOptions
 			identities[string(node.Ecosystem)+"\x00"+node.Name+"\x00"+node.Version]++
 		}
 	}
-	adjacency := graphDisplayAdjacency(result, nodes)
+	adjacency := graphAdjacency(graph.ExplanationEdges(result), nodes)
 	for index, rootID := range result.Roots {
 		root, ok := nodes[rootID]
 		if !ok {
@@ -106,52 +106,6 @@ func graphAdjacency(edges []graph.Edge, nodes map[string]graph.Node) map[string]
 			continue
 		}
 		adjacency[edge.From] = append(adjacency[edge.From], edge)
-	}
-	sortGraphAdjacency(adjacency, nodes)
-	return adjacency
-}
-
-func graphDisplayAdjacency(result graph.Result, nodes map[string]graph.Node) map[string][]graph.Edge {
-	adjacency := graphAdjacency(result.Edges, nodes)
-	removed := make(map[string][]graph.Edge)
-	for _, rootID := range result.Roots {
-		edges := adjacency[rootID]
-		kept := make([]graph.Edge, 0, len(edges))
-		for _, edge := range edges {
-			if nodes[edge.To].Direct {
-				kept = append(kept, edge)
-			} else {
-				removed[rootID] = append(removed[rootID], edge)
-			}
-		}
-		adjacency[rootID] = kept
-	}
-
-	reachable := make(map[string]bool)
-	var visit func(string)
-	visit = func(id string) {
-		if reachable[id] {
-			return
-		}
-		reachable[id] = true
-		for _, edge := range adjacency[id] {
-			visit(edge.To)
-		}
-	}
-	for _, rootID := range result.Roots {
-		visit(rootID)
-	}
-
-	// Keep one root edge for any requirement component that is not reachable
-	// through a direct dependency. JSON still retains every original edge.
-	for _, rootID := range result.Roots {
-		for _, edge := range removed[rootID] {
-			if reachable[edge.To] {
-				continue
-			}
-			adjacency[rootID] = append(adjacency[rootID], edge)
-			visit(edge.To)
-		}
 	}
 	sortGraphAdjacency(adjacency, nodes)
 	return adjacency
