@@ -245,3 +245,5 @@ make lint      # Run go vet
 ```
 
 The tests cover parsing, lockfile resolution, graph paths, registry responses, scan coverage, report output, and CLI exit behavior. When contributing a fix, include a small reproducer and a regression test where appropriate. Keep health-scan coverage and unsupported formats explicit in user-facing output.
+
+See [performance benchmarks](PERFORMANCE.md) for measured scan and graph timings, allocation data, limitations, and commands to reproduce the results.

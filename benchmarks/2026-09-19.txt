@@ -1,0 +1,51 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Tmwakalasya/deadcheck/internal/scanner
+cpu: Apple M4 Pro
+BenchmarkScan/direct=50/locked=500/workers=10/latency=0s-12         	     286	   2026113 ns/op	       100.0 requests/op	 1938479 B/op	   14477 allocs/op
+BenchmarkScan/direct=50/locked=500/workers=10/latency=0s-12         	     337	   1857639 ns/op	       100.0 requests/op	 1938685 B/op	   14479 allocs/op
+BenchmarkScan/direct=50/locked=500/workers=10/latency=0s-12         	     290	   1888198 ns/op	       100.0 requests/op	 1939060 B/op	   14481 allocs/op
+BenchmarkScan/direct=250/locked=2500/workers=10/latency=0s-12       	      73	   7914893 ns/op	       500.0 requests/op	 9115630 B/op	   71245 allocs/op
+BenchmarkScan/direct=250/locked=2500/workers=10/latency=0s-12       	      79	   7874150 ns/op	       500.0 requests/op	 9115813 B/op	   71249 allocs/op
+BenchmarkScan/direct=250/locked=2500/workers=10/latency=0s-12       	      76	   7862445 ns/op	       500.0 requests/op	 9115552 B/op	   71246 allocs/op
+BenchmarkScan/direct=1000/locked=10000/workers=10/latency=0s-12     	      20	  29943604 ns/op	      2000 requests/op	37014802 B/op	  283888 allocs/op
+BenchmarkScan/direct=1000/locked=10000/workers=10/latency=0s-12     	      21	  27959065 ns/op	      2000 requests/op	37012529 B/op	  283870 allocs/op
+BenchmarkScan/direct=1000/locked=10000/workers=10/latency=0s-12     	      21	  29412054 ns/op	      2000 requests/op	37015459 B/op	  283902 allocs/op
+BenchmarkScan/direct=100/locked=1000/workers=1/latency=5ms-12       	       1	 566742250 ns/op	       200.0 requests/op	 3963256 B/op	   29256 allocs/op
+BenchmarkScan/direct=100/locked=1000/workers=1/latency=5ms-12       	       1	 577942083 ns/op	       200.0 requests/op	 3963000 B/op	   29250 allocs/op
+BenchmarkScan/direct=100/locked=1000/workers=1/latency=5ms-12       	       1	 577667875 ns/op	       200.0 requests/op	 3963064 B/op	   29251 allocs/op
+BenchmarkScan/direct=100/locked=1000/workers=10/latency=5ms-12      	       8	  63983849 ns/op	       200.0 requests/op	 3970553 B/op	   29294 allocs/op
+BenchmarkScan/direct=100/locked=1000/workers=10/latency=5ms-12      	       8	  64274068 ns/op	       200.0 requests/op	 3969163 B/op	   29283 allocs/op
+BenchmarkScan/direct=100/locked=1000/workers=10/latency=5ms-12      	       8	  64693188 ns/op	       200.0 requests/op	 3971978 B/op	   29306 allocs/op
+BenchmarkScan/direct=100/locked=1000/workers=50/latency=5ms-12      	      31	  18278930 ns/op	       200.0 requests/op	 3994855 B/op	   29407 allocs/op
+BenchmarkScan/direct=100/locked=1000/workers=50/latency=5ms-12      	      36	  17503038 ns/op	       200.0 requests/op	 3995296 B/op	   29418 allocs/op
+BenchmarkScan/direct=100/locked=1000/workers=50/latency=5ms-12      	      33	  17911470 ns/op	       200.0 requests/op	 3994373 B/op	   29416 allocs/op
+BenchmarkScan/direct=1000/locked=10000/workers=10/latency=5ms-12    	       1	 609546250 ns/op	      2000 requests/op	37517288 B/op	  289998 allocs/op
+BenchmarkScan/direct=1000/locked=10000/workers=10/latency=5ms-12    	       1	 611083667 ns/op	      2000 requests/op	37522872 B/op	  290055 allocs/op
+BenchmarkScan/direct=1000/locked=10000/workers=10/latency=5ms-12    	       1	 611365250 ns/op	      2000 requests/op	37512632 B/op	  289941 allocs/op
+PASS
+ok  	github.com/Tmwakalasya/deadcheck/internal/scanner	14.204s
+goos: darwin
+goarch: arm64
+pkg: github.com/Tmwakalasya/deadcheck/internal/graph
+cpu: Apple M4 Pro
+BenchmarkNPMGraph/packages=100-12         	    2788	    219458 ns/op	  346993 B/op	    2362 allocs/op
+BenchmarkNPMGraph/packages=100-12         	    2581	    242398 ns/op	  346995 B/op	    2362 allocs/op
+BenchmarkNPMGraph/packages=100-12         	    2536	    230207 ns/op	  346991 B/op	    2362 allocs/op
+BenchmarkNPMGraph/packages=1000-12        	     304	   1970941 ns/op	 3574281 B/op	   18806 allocs/op
+BenchmarkNPMGraph/packages=1000-12        	     310	   1930947 ns/op	 3574300 B/op	   18806 allocs/op
+BenchmarkNPMGraph/packages=1000-12        	     313	   2041926 ns/op	 3574310 B/op	   18806 allocs/op
+BenchmarkNPMGraph/packages=10000-12       	      25	  22156005 ns/op	32978082 B/op	  184173 allocs/op
+BenchmarkNPMGraph/packages=10000-12       	      26	  22416149 ns/op	32977920 B/op	  184172 allocs/op
+BenchmarkNPMGraph/packages=10000-12       	      25	  22563928 ns/op	32978000 B/op	  184172 allocs/op
+BenchmarkWhy/packages=100-12              	    8619	     67433 ns/op	  176760 B/op	     769 allocs/op
+BenchmarkWhy/packages=100-12              	    8864	     68543 ns/op	  176760 B/op	     769 allocs/op
+BenchmarkWhy/packages=100-12              	    8810	     68148 ns/op	  176760 B/op	     769 allocs/op
+BenchmarkWhy/packages=1000-12             	     973	    633266 ns/op	 1701221 B/op	    6141 allocs/op
+BenchmarkWhy/packages=1000-12             	     960	    631331 ns/op	 1701222 B/op	    6141 allocs/op
+BenchmarkWhy/packages=1000-12             	     963	    620362 ns/op	 1701223 B/op	    6141 allocs/op
+BenchmarkWhy/packages=10000-12            	      93	   6332375 ns/op	14559997 B/op	   60387 allocs/op
+BenchmarkWhy/packages=10000-12            	      93	   6505225 ns/op	14556865 B/op	   60387 allocs/op
+BenchmarkWhy/packages=10000-12            	      91	   6776579 ns/op	14556806 B/op	   60387 allocs/op
+PASS
+ok  	github.com/Tmwakalasya/deadcheck/internal/graph	12.503s
