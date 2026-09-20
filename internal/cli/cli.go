@@ -22,10 +22,11 @@ import (
 )
 
 const (
-	exitOK        = 0
-	exitThreshold = 1
-	exitUsage     = 2
-	exitStartup   = 3
+	exitOK         = 0
+	exitThreshold  = 1
+	exitUsage      = 2
+	exitStartup    = 3
+	exitIncomplete = 4
 )
 
 type Config struct {
@@ -93,7 +94,7 @@ func Main(args []string, version string, stdin io.Reader, stdout, stderr io.Writ
 	flags.BoolVar(&productionOnly, "production-only", false, "exclude devDependencies from scans and scoring")
 	flags.BoolVar(&verbose, "verbose", false, "show info findings in terminal output")
 	flags.StringVar(&minSeverity, "min-severity", string(model.SeverityWarning), "minimum severity: info, warning, critical")
-	flags.IntVar(&failBelow, "fail-below", 0, "exit 1 if score is below threshold")
+	flags.IntVar(&failBelow, "fail-below", 0, "exit 1 below threshold, or 4 for an incomplete scan (0 disables)")
 	flags.StringVar(&pathFlag, "path", "", "target directory to scan")
 	flags.IntVar(&workers, "workers", 10, "maximum concurrent dependency checks")
 	flags.DurationVar(&timeout, "timeout", 30*time.Second, "scan timeout")
@@ -476,8 +477,13 @@ func execute(ctx context.Context, cfg Config, stdin io.Reader, stdout, stderr io
 		}
 	}
 
-	if cfg.FailBelow > 0 && result.Score < cfg.FailBelow {
-		return &ExitError{Code: exitThreshold}
+	if cfg.FailBelow > 0 {
+		if result.Partial || result.Score == nil {
+			return &ExitError{Code: exitIncomplete}
+		}
+		if *result.Score < cfg.FailBelow {
+			return &ExitError{Code: exitThreshold}
+		}
 	}
 	return nil
 }

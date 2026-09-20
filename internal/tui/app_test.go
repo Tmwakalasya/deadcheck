@@ -114,23 +114,58 @@ func TestEnabledHonorsNoColor(t *testing.T) {
 	}
 }
 
+func TestIncompleteResultsNeverAppearHealthy(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m := newModel(ctx, cancel, Options{MinSeverity: model.SeverityWarning}, nil)
+	m.phase = phaseResults
+	m.result = model.ScanResult{
+		Partial: true, Grade: model.GradeIncomplete, DependencyCount: 2, CheckedDependencyCount: 1,
+		Dependencies: []model.DependencyReport{
+			{Dependency: model.Dependency{Name: "checked-lib"}, Complete: true, MaxSeverity: model.SeverityOK},
+			{Dependency: model.Dependency{Name: "unchecked-lib"}, MaxSeverity: model.SeverityOK},
+		},
+	}
+	m.tab = int(filterClean)
+	if reports := m.filteredReports(); len(reports) != 1 || reports[0].Dependency.Name != "checked-lib" {
+		t.Fatalf("unchecked dependency appeared clean: %#v", reports)
+	}
+	if severityCounts(m.result.Dependencies)[model.SeverityOK] != 1 {
+		t.Fatal("unchecked dependency counted as clean")
+	}
+	for _, width := range []int{40, 60, 80, 120} {
+		m.width, m.height = width, 34
+		view := m.View().Content
+		for _, want := range []string{"INCOMPLETE", "unavailable", "1/2"} {
+			if !strings.Contains(view, want) {
+				t.Errorf("width %d missing %q: %s", width, want, view)
+			}
+		}
+		if strings.Contains(view, "EXCELLENT") || strings.Contains(view, "100 / 100") {
+			t.Errorf("incomplete view suggests healthy score: %s", view)
+		}
+	}
+	if summary := exitSummary(m.result); !strings.Contains(summary, "INCOMPLETE") || !strings.Contains(summary, "1/2 fully checked") {
+		t.Errorf("unexpected summary: %s", summary)
+	}
+}
+
 func sampleResult() model.ScanResult {
+	score := 72
 	return model.ScanResult{
-		Path:            "/tmp/project",
-		Score:           72,
-		Grade:           model.GradeGood,
-		DependencyCount: 4,
-		DurationMS:      1200,
-		Ecosystems:      []model.Ecosystem{model.EcosystemNPM},
-		Manifests:       []model.Manifest{{Filename: "package.json", Path: "/tmp/project/package.json"}},
-		Warnings: []model.Warning{{
-			Kind:       "lookup_failed",
-			Dependency: "warning-lib",
-			Message:    "registry unavailable",
-		}},
+		Path:                   "/tmp/project",
+		Score:                  &score,
+		CheckedDependencyCount: 4,
+		Grade:                  model.GradeGood,
+		DependencyCount:        4,
+		DurationMS:             1200,
+		Ecosystems:             []model.Ecosystem{model.EcosystemNPM},
+		Manifests:              []model.Manifest{{Filename: "package.json", Path: "/tmp/project/package.json"}},
 		Dependencies: []model.DependencyReport{
 			{
 				Dependency:  model.Dependency{Name: "critical-lib", Ecosystem: model.EcosystemNPM, ResolvedVersion: "1.0.0", Source: "/tmp/project/package.json", Constraint: "^1.0.0"},
+				Complete:    true,
 				MaxSeverity: model.SeverityCritical,
 				Findings: []model.Finding{{
 					Kind:       "cve",
@@ -142,16 +177,19 @@ func sampleResult() model.ScanResult {
 			},
 			{
 				Dependency:  model.Dependency{Name: "warning-lib", Ecosystem: model.EcosystemNPM, ResolvedVersion: "1.0.0"},
+				Complete:    true,
 				MaxSeverity: model.SeverityWarning,
 				Findings:    []model.Finding{{Kind: "stale", Severity: model.SeverityWarning, Title: "STALE", Detail: "last release was 500 days ago"}},
 			},
 			{
 				Dependency:  model.Dependency{Name: "info-lib", Ecosystem: model.EcosystemNPM, ResolvedVersion: "1.0.0"},
+				Complete:    true,
 				MaxSeverity: model.SeverityInfo,
 				Findings:    []model.Finding{{Kind: "stale", Severity: model.SeverityInfo, Title: "AGING", Detail: "last release was 200 days ago"}},
 			},
 			{
 				Dependency:  model.Dependency{Name: "clean-lib", Ecosystem: model.EcosystemNPM, ResolvedVersion: "1.0.0"},
+				Complete:    true,
 				MaxSeverity: model.SeverityOK,
 			},
 		},

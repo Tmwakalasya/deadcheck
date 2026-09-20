@@ -32,11 +32,38 @@ func WriteGitHubSummary(w io.Writer, result model.ScanResult) error {
 	if _, err := fmt.Fprintln(w); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "**Health Score:** %d/100 (%s)\n\n", result.Score, gradeLabel(result.Grade)); err != nil {
+	score := "unavailable (INCOMPLETE)"
+	if result.Score != nil && !result.Partial {
+		score = fmt.Sprintf("%d/100 (%s)", *result.Score, gradeLabel(result.Grade))
+	}
+	if _, err := fmt.Fprintf(w, "**Health Score:** %s\n\n", score); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "**Scanned:** %d dependencies across %d %s in %.1fs\n\n", result.DependencyCount, len(result.Ecosystems), pluralize("ecosystem", len(result.Ecosystems)), float64(result.DurationMS)/1000); err != nil {
 		return err
+	}
+	if _, err := fmt.Fprintf(w, "**Coverage:** %d/%d dependencies fully checked (direct dependencies only).\n\n", result.CheckedDependencyCount, result.DependencyCount); err != nil {
+		return err
+	}
+	if result.Partial {
+		if _, err := fmt.Fprintln(w, "**Scan incomplete:** unchecked dependencies may have additional findings.\n\n| Dependency | Checks |\n| --- | --- |"); err != nil {
+			return err
+		}
+		for _, dep := range result.Dependencies {
+			status := "complete"
+			if !dep.Complete {
+				status = "incomplete"
+				if checks := incompleteChecks(dep); checks != "" {
+					status += ": " + checks
+				}
+			}
+			if _, err := fmt.Fprintf(w, "| %s | %s |\n", escapeMarkdownCell(dep.Dependency.Name), escapeMarkdownCell(status)); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintln(w); err != nil {
+			return err
+		}
 	}
 	if _, err := fmt.Fprintln(w, "| Severity | Dependencies |"); err != nil {
 		return err
@@ -55,6 +82,10 @@ func WriteGitHubSummary(w io.Writer, result model.ScanResult) error {
 
 	risky := riskyReports(result.Dependencies, 10)
 	if len(risky) == 0 {
+		if result.Partial {
+			_, err := fmt.Fprintln(w, "\nNo critical or warning findings in completed checks.")
+			return err
+		}
 		_, err := fmt.Fprintln(w, "\nNo critical or warning findings.")
 		return err
 	}

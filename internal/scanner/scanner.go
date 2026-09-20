@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tmwakalasya/deadcheck/internal/checker"
 	"github.com/Tmwakalasya/deadcheck/internal/detector"
+	"github.com/Tmwakalasya/deadcheck/internal/graph"
 	"github.com/Tmwakalasya/deadcheck/internal/model"
 	"github.com/Tmwakalasya/deadcheck/internal/parser"
 	"github.com/Tmwakalasya/deadcheck/internal/registry"
@@ -72,11 +73,17 @@ func (s *Scanner) Scan(ctx context.Context, target string) (model.ScanResult, er
 		warnings []model.Warning
 	)
 	for _, manifest := range manifests {
-		parser := s.parserFor(manifest.Filename)
-		if parser == nil {
+		manifestParser := s.parserFor(manifest.Filename)
+		if manifestParser == nil {
 			continue
 		}
-		result, err := parser.Parse(manifest.Path)
+		var result parser.Result
+		var err error
+		if manifest.Filename == "package.json" {
+			result, err = graph.ResolveNPMDirect(manifest.Path)
+		} else {
+			result, err = manifestParser.Parse(manifest.Path)
+		}
 		if err != nil {
 			return model.ScanResult{}, err
 		}
@@ -108,32 +115,49 @@ func (s *Scanner) Scan(ctx context.Context, target string) (model.ScanResult, er
 	}
 	_ = g.Wait()
 
-	if errors.Is(groupCtx.Err(), context.DeadlineExceeded) {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		partial = true
 		warnings = append(warnings, model.Warning{
 			Kind:    "timeout",
 			Message: "scan timeout reached before all dependency checks completed",
 			Source:  absPath,
 		})
+	} else if ctx.Err() != nil {
+		partial = true
+		warnings = append(warnings, model.Warning{Kind: "canceled", Message: "scan canceled before completion", Source: absPath})
 	}
 
 	sortReports(reports)
 	model.SortWarnings(warnings)
 	score, grade := scorer.Score(reports)
+	var scoreValue *int
+	partial = partial || len(warnings) > 0
+	if partial {
+		grade = model.GradeIncomplete
+	} else {
+		scoreValue = &score
+	}
+	checked := 0
+	for _, report := range reports {
+		if report.Complete {
+			checked++
+		}
+	}
 
 	result := model.ScanResult{
-		Path:            absPath,
-		Manifests:       manifests,
-		Dependencies:    reports,
-		Warnings:        warnings,
-		Score:           score,
-		Grade:           grade,
-		Partial:         partial || len(warnings) > 0,
-		DependencyCount: len(reports),
-		Ecosystems:      model.EcosystemsFromReports(reports),
-		DurationMS:      time.Since(started).Milliseconds(),
-		StartedAt:       started,
-		CompletedAt:     time.Now().UTC(),
+		Path:                   absPath,
+		Manifests:              manifests,
+		Dependencies:           reports,
+		Warnings:               warnings,
+		Score:                  scoreValue,
+		Grade:                  grade,
+		Partial:                partial,
+		DependencyCount:        len(reports),
+		CheckedDependencyCount: checked,
+		Ecosystems:             model.EcosystemsFromReports(reports),
+		DurationMS:             time.Since(started).Milliseconds(),
+		StartedAt:              started,
+		CompletedAt:            time.Now().UTC(),
 	}
 	return result, nil
 }
@@ -151,6 +175,10 @@ func (s *Scanner) scanDependency(ctx context.Context, dep model.Dependency) (mod
 	report := model.DependencyReport{
 		Dependency:  dep,
 		MaxSeverity: model.SeverityOK,
+		Checks:      make([]model.CheckResult, len(s.checkers)),
+	}
+	for i, item := range s.checkers {
+		report.Checks[i] = model.CheckResult{Name: item.Name(), Status: model.CheckSkipped}
 	}
 	if dep.SkipReason != "" {
 		return report, nil, true
@@ -164,7 +192,8 @@ func (s *Scanner) scanDependency(ctx context.Context, dep model.Dependency) (mod
 	)
 
 	g, _ := errgroup.WithContext(ctx)
-	for _, item := range s.checkers {
+	for i, item := range s.checkers {
+		i := i
 		item := item
 		g.Go(func() error {
 			result, itemWarnings, err := item.Check(ctx, dep)
@@ -172,14 +201,17 @@ func (s *Scanner) scanDependency(ctx context.Context, dep model.Dependency) (mod
 			defer mu.Unlock()
 			findings = append(findings, result...)
 			warnings = append(warnings, itemWarnings...)
+			report.Checks[i].Status = model.CheckComplete
 			if len(itemWarnings) > 0 {
 				partial = true
+				report.Checks[i].Status = model.CheckSkipped
 			}
 			if err != nil {
 				partial = true
+				report.Checks[i].Status = model.CheckFailed
 				warnings = append(warnings, model.Warning{
 					Kind:       "lookup_failed",
-					Message:    err.Error(),
+					Message:    item.Name() + ": " + err.Error(),
 					Dependency: dep.Name,
 					Source:     dep.Source,
 				})
@@ -188,6 +220,7 @@ func (s *Scanner) scanDependency(ctx context.Context, dep model.Dependency) (mod
 		})
 	}
 	_ = g.Wait()
+	report.Complete = !partial
 
 	sortFindings(findings)
 	report.Findings = findings

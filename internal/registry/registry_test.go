@@ -88,6 +88,15 @@ func TestNPMMetadataIncludesVersionDeprecation(t *testing.T) {
 	if meta.DeprecationMessage != "use 4.17.21" {
 		t.Fatalf("unexpected deprecation message: %q", meta.DeprecationMessage)
 	}
+	meta, err = registryClient.PackageMetadata(context.Background(), model.Dependency{
+		Name: "lodash", Ecosystem: model.EcosystemNPM, ResolvedVersion: "4.17.21",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.DeprecationMessage != "" || meta.DeprecationError != nil {
+		t.Fatalf("deprecation metadata leaked between versions: %#v", meta)
+	}
 }
 
 func TestPyPIMetadataMarksInactivePackages(t *testing.T) {

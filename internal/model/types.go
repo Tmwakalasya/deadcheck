@@ -62,6 +62,7 @@ type Dependency struct {
 	Source          string    `json:"source"`
 	Constraint      string    `json:"constraint"`
 	ResolvedVersion string    `json:"resolved_version"`
+	VersionSource   string    `json:"version_source,omitempty"`
 	Direct          bool      `json:"direct"`
 	Dev             bool      `json:"dev"`
 	SkipReason      string    `json:"skip_reason,omitempty"`
@@ -72,14 +73,14 @@ func (d Dependency) Key() string {
 }
 
 type Finding struct {
-	Kind        string    `json:"kind"`
-	Severity    Severity  `json:"severity"`
-	Title       string    `json:"title"`
-	Detail      string    `json:"detail"`
-	Suggestion  string    `json:"suggestion,omitempty"`
-	CVSS        *float64  `json:"cvss,omitempty"`
+	Kind         string   `json:"kind"`
+	Severity     Severity `json:"severity"`
+	Title        string   `json:"title"`
+	Detail       string   `json:"detail"`
+	Suggestion   string   `json:"suggestion,omitempty"`
+	CVSS         *float64 `json:"cvss,omitempty"`
 	FixedVersion string   `json:"fixed_version,omitempty"`
-	References  []string  `json:"references,omitempty"`
+	References   []string `json:"references,omitempty"`
 }
 
 type Warning struct {
@@ -95,10 +96,25 @@ type Manifest struct {
 }
 
 type DependencyReport struct {
-	Dependency       Dependency `json:"dependency"`
-	Findings         []Finding  `json:"findings"`
-	MaxSeverity      Severity   `json:"max_severity"`
-	VulnerabilityIDs []string   `json:"vulnerability_ids,omitempty"`
+	Dependency       Dependency    `json:"dependency"`
+	Findings         []Finding     `json:"findings"`
+	MaxSeverity      Severity      `json:"max_severity"`
+	VulnerabilityIDs []string      `json:"vulnerability_ids,omitempty"`
+	Complete         bool          `json:"complete"`
+	Checks           []CheckResult `json:"checks"`
+}
+
+type CheckStatus string
+
+const (
+	CheckComplete CheckStatus = "complete"
+	CheckFailed   CheckStatus = "failed"
+	CheckSkipped  CheckStatus = "skipped"
+)
+
+type CheckResult struct {
+	Name   string      `json:"name"`
+	Status CheckStatus `json:"status"`
 }
 
 type Grade string
@@ -108,21 +124,23 @@ const (
 	GradeGood           Grade = "good"
 	GradeNeedsAttention Grade = "needs_attention"
 	GradeCritical       Grade = "critical"
+	GradeIncomplete     Grade = "incomplete"
 )
 
 type ScanResult struct {
-	Path            string             `json:"path"`
-	Manifests       []Manifest         `json:"manifests"`
-	Dependencies    []DependencyReport `json:"dependencies"`
-	Warnings        []Warning          `json:"warnings"`
-	Score           int                `json:"score"`
-	Grade           Grade              `json:"grade"`
-	Partial         bool               `json:"partial"`
-	DependencyCount int                `json:"dependency_count"`
-	Ecosystems      []Ecosystem        `json:"ecosystems"`
-	DurationMS      int64              `json:"duration_ms"`
-	StartedAt       time.Time          `json:"started_at"`
-	CompletedAt     time.Time          `json:"completed_at"`
+	Path                   string             `json:"path"`
+	Manifests              []Manifest         `json:"manifests"`
+	Dependencies           []DependencyReport `json:"dependencies"`
+	Warnings               []Warning          `json:"warnings"`
+	Score                  *int               `json:"score"`
+	Grade                  Grade              `json:"grade"`
+	Partial                bool               `json:"partial"`
+	DependencyCount        int                `json:"dependency_count"`
+	CheckedDependencyCount int                `json:"checked_dependency_count"`
+	Ecosystems             []Ecosystem        `json:"ecosystems"`
+	DurationMS             int64              `json:"duration_ms"`
+	StartedAt              time.Time          `json:"started_at"`
+	CompletedAt            time.Time          `json:"completed_at"`
 }
 
 type FatalResult struct {

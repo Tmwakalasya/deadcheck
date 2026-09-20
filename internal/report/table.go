@@ -28,7 +28,13 @@ func WriteTable(stdout, stderr io.Writer, result model.ScanResult, opts TableOpt
 	}
 
 	grade := strings.ToUpper(gradeLabel(result.Grade))
-	score := renderStyle(opts.Colorize, fmt.Sprintf("%d / 100", result.Score), gradeColor(result.Grade), true)
+	scoreText := "unavailable"
+	if result.Score != nil && !result.Partial {
+		scoreText = fmt.Sprintf("%d / 100", *result.Score)
+	} else {
+		grade = "INCOMPLETE"
+	}
+	score := renderStyle(opts.Colorize, scoreText, gradeColor(result.Grade), true)
 	if _, err := fmt.Fprintf(stdout, "\nHEALTH SCORE  %s  %s\n", score, grade); err != nil {
 		return err
 	}
@@ -43,6 +49,30 @@ func WriteTable(stdout, stderr io.Writer, result model.ScanResult, opts TableOpt
 	}
 	if _, err := fmt.Fprintf(stdout, "Manifests: %s\n\n", manifestSummary(result.Manifests, result.Dependencies)); err != nil {
 		return err
+	}
+	if _, err := fmt.Fprintf(stdout, "CHECK COVERAGE  %d / %d dependencies fully checked (direct dependencies only)\n\n", result.CheckedDependencyCount, result.DependencyCount); err != nil {
+		return err
+	}
+	if result.Partial {
+		if _, err := fmt.Fprintln(stdout, "Scan incomplete; unchecked dependencies may have additional findings."); err != nil {
+			return err
+		}
+		for _, dep := range result.Dependencies {
+			status := "checked"
+			if !dep.Complete {
+				status = "incomplete"
+			}
+			detail := ""
+			if checks := incompleteChecks(dep); checks != "" {
+				detail = " (" + checks + ")"
+			}
+			if _, err := fmt.Fprintf(stdout, "  %s  %s%s\n", status, dep.Dependency.Name, detail); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintln(stdout); err != nil {
+			return err
+		}
 	}
 
 	printed := false
@@ -83,7 +113,11 @@ func WriteTable(stdout, stderr io.Writer, result model.ScanResult, opts TableOpt
 	}
 
 	if !printed {
-		if _, err := fmt.Fprintln(stdout, renderStyle(opts.Colorize, "No findings at or above the selected severity.", reportClean, true)); err != nil {
+		message, color := "No findings at or above the selected severity.", reportClean
+		if result.Partial {
+			message, color = "No findings at or above the selected severity in completed checks.", reportWarning
+		}
+		if _, err := fmt.Fprintln(stdout, renderStyle(opts.Colorize, message, color, true)); err != nil {
 			return err
 		}
 	}
@@ -241,6 +275,8 @@ func displayVersion(version string) string {
 
 func gradeLabel(grade model.Grade) string {
 	switch grade {
+	case model.GradeIncomplete:
+		return "incomplete"
 	case model.GradeExcellent:
 		return "excellent"
 	case model.GradeGood:
@@ -254,6 +290,8 @@ func gradeLabel(grade model.Grade) string {
 
 func gradeColor(grade model.Grade) color.Color {
 	switch grade {
+	case model.GradeIncomplete:
+		return reportWarning
 	case model.GradeExcellent:
 		return reportClean
 	case model.GradeGood:

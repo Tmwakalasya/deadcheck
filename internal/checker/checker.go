@@ -7,5 +7,6 @@ import (
 )
 
 type Checker interface {
+	Name() string
 	Check(ctx context.Context, dep model.Dependency) ([]model.Finding, []model.Warning, error)
 }

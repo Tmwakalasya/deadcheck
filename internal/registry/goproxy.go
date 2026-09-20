@@ -28,9 +28,7 @@ func (c *Client) goMetadata(ctx context.Context, module string) (PackageMetadata
 		LatestVersion: info.Version,
 		LatestRelease: info.Time,
 	}
-	if message, err := c.fetchGoDeprecation(ctx, escaped, info.Version); err == nil {
-		meta.DeprecationMessage = message
-	}
+	meta.DeprecationMessage, meta.DeprecationError = c.fetchGoDeprecation(ctx, escaped, info.Version)
 	return meta, nil
 }
 

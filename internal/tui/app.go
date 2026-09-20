@@ -292,7 +292,7 @@ func (m appModel) filteredReports() []model.DependencyReport {
 		case filterInfo:
 			include = report.MaxSeverity == model.SeverityInfo
 		case filterClean:
-			include = report.MaxSeverity == model.SeverityOK
+			include = report.Complete && report.MaxSeverity == model.SeverityOK
 		}
 		if include {
 			reports = append(reports, report)
@@ -320,20 +320,28 @@ func (m appModel) selectedWarning() *model.Warning {
 
 func exitSummary(result model.ScanResult) string {
 	counts := severityCounts(result.Dependencies)
+	score := "INCOMPLETE (score unavailable)"
+	if result.Score != nil && !result.Partial {
+		score = fmt.Sprintf("%d/100 %s", *result.Score, strings.ReplaceAll(string(result.Grade), "_", " "))
+	}
 	return fmt.Sprintf(
-		"deadcheck: %d/100 %s | %d critical, %d warning | %d dependencies in %.1fs",
-		result.Score,
-		strings.ReplaceAll(string(result.Grade), "_", " "),
+		"deadcheck: %s | %d critical, %d warning | %d dependencies in %.1fs | %d/%d fully checked",
+		score,
 		counts[model.SeverityCritical],
 		counts[model.SeverityWarning],
 		result.DependencyCount,
 		float64(result.DurationMS)/1000,
+		result.CheckedDependencyCount,
+		result.DependencyCount,
 	)
 }
 
 func severityCounts(reports []model.DependencyReport) map[model.Severity]int {
 	counts := make(map[model.Severity]int)
 	for _, report := range reports {
+		if report.MaxSeverity == model.SeverityOK && !report.Complete {
+			continue
+		}
 		counts[report.MaxSeverity]++
 	}
 	return counts

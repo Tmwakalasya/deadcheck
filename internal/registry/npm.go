@@ -9,9 +9,9 @@ import (
 )
 
 type npmPackument struct {
-	DistTags map[string]string       `json:"dist-tags"`
-	Time     map[string]string       `json:"time"`
-	Versions map[string]npmVersion   `json:"versions"`
+	DistTags map[string]string     `json:"dist-tags"`
+	Time     map[string]string     `json:"time"`
+	Versions map[string]npmVersion `json:"versions"`
 }
 
 type npmVersion struct {
@@ -47,6 +47,8 @@ func (c *Client) npmMetadata(ctx context.Context, pkgName, resolvedVersion strin
 	if resolvedVersion != "" {
 		if version, ok := packument.Versions[resolvedVersion]; ok {
 			meta.DeprecationMessage = strings.TrimSpace(version.Deprecated)
+		} else {
+			meta.DeprecationError = fmt.Errorf("npm registry returned no deprecation metadata for %s@%s", pkgName, resolvedVersion)
 		}
 	}
 	return meta, nil

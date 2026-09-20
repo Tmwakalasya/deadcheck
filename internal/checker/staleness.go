@@ -18,6 +18,8 @@ type StalenessChecker struct {
 	registry metadataProvider
 }
 
+func (StalenessChecker) Name() string { return "staleness" }
+
 func NewStaleness(reg metadataProvider) StalenessChecker {
 	return StalenessChecker{
 		now:      time.Now,
@@ -34,7 +36,12 @@ func (c StalenessChecker) Check(ctx context.Context, dep model.Dependency) ([]mo
 		return nil, nil, err
 	}
 	if meta.LatestRelease.IsZero() {
-		return nil, nil, nil
+		return nil, []model.Warning{{
+			Kind:       "release_date_missing",
+			Message:    "staleness check skipped because the registry returned no usable release date",
+			Dependency: dep.Name,
+			Source:     dep.Source,
+		}}, nil
 	}
 
 	ageDays := int(c.now().UTC().Sub(meta.LatestRelease.UTC()).Hours() / 24)

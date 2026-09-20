@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Tmwakalasya/deadcheck/internal/model"
 )
 
 func TestCLIJSONOutputAndFailBelow(t *testing.T) {
@@ -27,8 +29,9 @@ func TestCLIJSONOutputAndFailBelow(t *testing.T) {
 	}
 
 	var payload struct {
-		Score           int `json:"score"`
-		DependencyCount int `json:"dependency_count"`
+		Score           *int   `json:"score"`
+		Grade           string `json:"grade"`
+		DependencyCount int    `json:"dependency_count"`
 	}
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
 		t.Fatalf("failed to decode JSON output: %v\nstdout=%s", err, stdout)
@@ -36,13 +39,13 @@ func TestCLIJSONOutputAndFailBelow(t *testing.T) {
 	if payload.DependencyCount != 1 {
 		t.Fatalf("expected dependency_count 1, got %d", payload.DependencyCount)
 	}
-	if payload.Score != 100 {
-		t.Fatalf("expected score 100 for skipped local dependency, got %d", payload.Score)
+	if payload.Score != nil || payload.Grade != "incomplete" {
+		t.Fatalf("expected an unavailable score for skipped local dependency, got %#v", payload)
 	}
 
 	_, _, code = runCLI(t, "http://127.0.0.1:1", "--json", "--fail-below", "101", project)
-	if code != 1 {
-		t.Fatalf("expected exit code 1 for fail-below threshold, got %d", code)
+	if code != 4 {
+		t.Fatalf("expected exit code 4 for incomplete scan with a threshold, got %d", code)
 	}
 }
 
@@ -64,13 +67,14 @@ func TestCLIGitHubSummaryKeepsJSONOutput(t *testing.T) {
 	}
 
 	var payload struct {
-		Score int `json:"score"`
+		Score *int   `json:"score"`
+		Grade string `json:"grade"`
 	}
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
 		t.Fatalf("failed to decode JSON output: %v\nstdout=%s", err, stdout)
 	}
-	if payload.Score != 100 {
-		t.Fatalf("expected score 100, got %d", payload.Score)
+	if payload.Score != nil || payload.Grade != "incomplete" {
+		t.Fatalf("expected unavailable score, got %#v", payload)
 	}
 
 	summary, err := os.ReadFile(summaryPath)
@@ -175,7 +179,7 @@ func TestCLINoTUIUsesPlainReport(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d\nstderr=%s", code, stderr)
 	}
-	for _, want := range []string{"DEADCHECK", "HEALTH SCORE", "No findings at or above the selected severity."} {
+	for _, want := range []string{"DEADCHECK", "HEALTH SCORE  unavailable  INCOMPLETE", "0 / 1 dependencies fully checked", "No findings at or above the selected severity in completed checks."} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("expected stdout to contain %q\n%s", want, stdout)
 		}
@@ -442,6 +446,75 @@ func TestCLIInitCICreatesWorkflow(t *testing.T) {
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("expected workflow to contain %q\n%s", want, content)
+		}
+	}
+}
+
+func TestCLIIncompleteScanFailsThresholdAndPreservesJSON(t *testing.T) {
+	t.Parallel()
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"dependencies":{"alpha":"1.0.0"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{"timeout", []string{"--timeout", "1ns"}},
+		{"registry unavailable", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			summaryPath := filepath.Join(t.TempDir(), "summary.md")
+			args := append([]string{"--json", "--github-summary", "--fail-below", "80"}, tc.args...)
+			args = append(args, project)
+			stdout, stderr, code := runCLIWithEnv(t, "http://127.0.0.1:1", []string{"GITHUB_STEP_SUMMARY=" + summaryPath}, args...)
+			if code != 4 {
+				t.Fatalf("expected incomplete exit 4, got %d: %s", code, stderr)
+			}
+			if stderr != "" {
+				t.Errorf("JSON diagnostics must remain in report, got %s", stderr)
+			}
+			var result model.ScanResult
+			if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+				t.Fatalf("expected one JSON report, got %q: %v", stdout, err)
+			}
+			if result.Score != nil || result.Grade != model.GradeIncomplete || !result.Partial || result.CheckedDependencyCount != 0 || len(result.Warnings) == 0 {
+				t.Fatalf("unexpected report: %#v", result)
+			}
+			if result.Dependencies[0].Complete {
+				t.Fatal("failed lookups marked complete")
+			}
+			summary, err := os.ReadFile(summaryPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(summary), "INCOMPLETE") {
+				t.Fatalf("missing incomplete summary: %s", summary)
+			}
+		})
+	}
+}
+
+func TestCLICompleteThresholdExitCodes(t *testing.T) {
+	t.Parallel()
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, "package.json"), []byte(`{"dependencies":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		threshold string
+		code      int
+	}{{"80", 0}, {"101", 1}} {
+		stdout, stderr, code := runCLI(t, "http://127.0.0.1:1", "--json", "--fail-below", tc.threshold, project)
+		if code != tc.code {
+			t.Fatalf("threshold %s: expected %d, got %d: %s", tc.threshold, tc.code, code, stderr)
+		}
+		var result model.ScanResult
+		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.Partial || result.Score == nil || *result.Score != 100 {
+			t.Fatalf("unexpected complete report: %#v", result)
 		}
 	}
 }

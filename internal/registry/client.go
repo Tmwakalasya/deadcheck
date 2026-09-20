@@ -45,6 +45,9 @@ func NewClient(httpClient *http.Client, urls URLs) *Client {
 
 func (c *Client) PackageMetadata(ctx context.Context, dep model.Dependency) (PackageMetadata, error) {
 	key := string(dep.Ecosystem) + "|" + dep.Name
+	if dep.Ecosystem == model.EcosystemNPM {
+		key = dep.Key() // npm deprecation applies to a specific version.
+	}
 	c.mu.Lock()
 	if cached, ok := c.metaCache[key]; ok {
 		c.mu.Unlock()

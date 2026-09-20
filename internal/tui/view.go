@@ -99,13 +99,19 @@ func (m appModel) resultsView() string {
 
 func (m appModel) compactResultsView() string {
 	grade := strings.ToUpper(strings.ReplaceAll(string(m.result.Grade), "_", " "))
+	score := "unavailable"
+	if m.result.Score != nil && !m.result.Partial {
+		score = fmt.Sprintf("%d / 100", *m.result.Score)
+	} else {
+		grade = "INCOMPLETE"
+	}
 	body := strings.Join([]string{
 		lipgloss.NewStyle().Bold(true).Foreground(accentColor).Render("DEADCHECK"),
 		"",
-		lipgloss.NewStyle().Bold(true).Foreground(gradeColor(m.result.Grade)).Render(fmt.Sprintf("%d / 100", m.result.Score)),
+		lipgloss.NewStyle().Bold(true).Foreground(gradeColor(m.result.Grade)).Render(score),
 		grade,
 		"",
-		fmt.Sprintf("%d dependencies", m.result.DependencyCount),
+		fmt.Sprintf("%d/%d dependencies checked", m.result.CheckedDependencyCount, m.result.DependencyCount),
 		fmt.Sprintf("%d scan warnings", len(m.result.Warnings)),
 		"",
 		lipgloss.NewStyle().Foreground(mutedColor).Render("Resize to 60x18 for the full inspector."),
@@ -133,18 +139,23 @@ func (m appModel) summaryView(width int) string {
 	counts := severityCounts(m.result.Dependencies)
 	grade := strings.ToUpper(strings.ReplaceAll(string(m.result.Grade), "_", " "))
 	gradeStyle := lipgloss.NewStyle().Bold(true).Foreground(gradeColor(m.result.Grade))
+	score := "unavailable"
+	if m.result.Score != nil && !m.result.Partial {
+		score = fmt.Sprintf("%d / 100", *m.result.Score)
+	} else {
+		grade = "INCOMPLETE"
+	}
 
 	scoreBody := lipgloss.NewStyle().Foreground(mutedColor).Render("HEALTH SCORE") + "\n" +
-		lipgloss.NewStyle().Bold(true).Foreground(gradeColor(m.result.Grade)).Render(fmt.Sprintf("%d", m.result.Score)) +
-		lipgloss.NewStyle().Foreground(mutedColor).Render(" / 100") + "\n" +
+		lipgloss.NewStyle().Bold(true).Foreground(gradeColor(m.result.Grade)).Render(score) + "\n" +
 		gradeStyle.Render(grade)
 
 	partial := "complete scan"
 	if m.result.Partial {
-		partial = "partial scan"
+		partial = "incomplete scan"
 	}
 	metrics := []string{
-		metric(fmt.Sprintf("%d", m.result.DependencyCount), "DEPENDENCIES"),
+		metric(fmt.Sprintf("%d/%d", m.result.CheckedDependencyCount, m.result.DependencyCount), "CHECKED"),
 		metric(fmt.Sprintf("%d", len(m.result.Manifests)), "MANIFESTS"),
 		metric(fmt.Sprintf("%d", len(m.result.Ecosystems)), "ECOSYSTEMS"),
 		metric(fmt.Sprintf("%.1fs", float64(m.result.DurationMS)/1000), strings.ToUpper(partial)),
@@ -163,11 +174,11 @@ func (m appModel) summaryView(width int) string {
 	}
 
 	scoreWidth := 21
-	score := panelStyle(scoreWidth, 5).Render(scoreBody)
+	scorePanel := panelStyle(scoreWidth, 5).Render(scoreBody)
 	metricWidth := width - scoreWidth - 1
 	metricBody := strings.Join(metrics, "    ") + "\n\n" + countsLine
 	metricsPanel := panelStyle(metricWidth, 5).Render(metricBody)
-	return lipgloss.JoinHorizontal(lipgloss.Top, score, " ", metricsPanel)
+	return lipgloss.JoinHorizontal(lipgloss.Top, scorePanel, " ", metricsPanel)
 }
 
 func (m appModel) tabsView(width int) string {
@@ -300,7 +311,7 @@ func (m appModel) dependencyDetail(width, height int) string {
 	report := m.selectedReport()
 	if report == nil {
 		return strings.Join([]string{
-			lipgloss.NewStyle().Bold(true).Render("ALL CLEAR IN THIS VIEW"),
+			lipgloss.NewStyle().Bold(true).Render("NO DEPENDENCIES IN THIS VIEW"),
 			"",
 			lipgloss.NewStyle().Foreground(mutedColor).Render("Switch filters with h/l or the number keys."),
 		}, "\n")
@@ -424,6 +435,8 @@ func severityColor(severity model.Severity) color.Color {
 
 func gradeColor(grade model.Grade) color.Color {
 	switch grade {
+	case model.GradeIncomplete:
+		return warningColor
 	case model.GradeExcellent:
 		return cleanColor
 	case model.GradeGood:

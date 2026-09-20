@@ -36,6 +36,7 @@ type PackageMetadata struct {
 	LatestVersion      string
 	LatestRelease      time.Time
 	DeprecationMessage string
+	DeprecationError   error
 	Inactive           bool
 }
 

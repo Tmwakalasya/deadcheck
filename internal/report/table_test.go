@@ -11,15 +11,18 @@ import (
 func TestWriteTablePlainText(t *testing.T) {
 	t.Parallel()
 
+	score := 85
 	result := model.ScanResult{
-		Path:            "/tmp/project",
-		Score:           85,
-		Grade:           model.GradeGood,
-		DependencyCount: 1,
-		DurationMS:      250,
-		Ecosystems:      []model.Ecosystem{model.EcosystemNPM},
-		Manifests:       []model.Manifest{{Filename: "package.json", Path: "/tmp/project/package.json"}},
+		Path:                   "/tmp/project",
+		Score:                  &score,
+		CheckedDependencyCount: 1,
+		Grade:                  model.GradeGood,
+		DependencyCount:        1,
+		DurationMS:             250,
+		Ecosystems:             []model.Ecosystem{model.EcosystemNPM},
+		Manifests:              []model.Manifest{{Filename: "package.json", Path: "/tmp/project/package.json"}},
 		Dependencies: []model.DependencyReport{{
+			Complete:    true,
 			Dependency:  model.Dependency{Name: "old-lib", ResolvedVersion: "1.0.0", Source: "/tmp/project/package.json"},
 			MaxSeverity: model.SeverityWarning,
 			Findings:    []model.Finding{{Kind: "stale", Severity: model.SeverityWarning, Title: "STALE", Detail: "last release was 500 days ago"}},

@@ -11,15 +11,18 @@ import (
 func TestWriteGitHubSummary(t *testing.T) {
 	t.Parallel()
 
+	score := 72
 	result := model.ScanResult{
-		Score:           72,
-		Grade:           model.GradeGood,
-		DependencyCount: 2,
-		Ecosystems:      []model.Ecosystem{model.EcosystemNPM},
-		DurationMS:      1200,
+		Score:                  &score,
+		CheckedDependencyCount: 2,
+		Grade:                  model.GradeGood,
+		DependencyCount:        2,
+		Ecosystems:             []model.Ecosystem{model.EcosystemNPM},
+		DurationMS:             1200,
 		Dependencies: []model.DependencyReport{
 			{
 				Dependency:  model.Dependency{Name: "lodash", Ecosystem: model.EcosystemNPM},
+				Complete:    true,
 				MaxSeverity: model.SeverityCritical,
 				Findings: []model.Finding{
 					{
@@ -32,10 +35,10 @@ func TestWriteGitHubSummary(t *testing.T) {
 			},
 			{
 				Dependency:  model.Dependency{Name: "express", Ecosystem: model.EcosystemNPM},
+				Complete:    true,
 				MaxSeverity: model.SeverityOK,
 			},
 		},
-		Warnings: []model.Warning{{Kind: "lookup_failed", Message: "registry unavailable"}},
 	}
 
 	var out bytes.Buffer
@@ -49,7 +52,7 @@ func TestWriteGitHubSummary(t *testing.T) {
 		"**Health Score:** 72/100 (good)",
 		"**Scanned:** 2 dependencies across 1 ecosystem in 1.2s",
 		"| critical | 1 |",
-		"| scan warnings | 1 |",
+		"| scan warnings | 0 |",
 		"| critical | `lodash` | CVE-2021-23337 - command injection |",
 	} {
 		if !strings.Contains(summary, want) {
